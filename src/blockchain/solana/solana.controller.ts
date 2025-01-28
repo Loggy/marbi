@@ -9,4 +9,18 @@ export class SolanaController {
   async checkAllBalances(@Body() { walletAddress }: { walletAddress: string }) {
     return await this.solanaService.getWalletBalances(walletAddress);
   }
+
+  @Post("jup-swap")
+  async jupSwap(
+    @Body()
+    params: {
+      fromToken: string;
+      toToken: string;
+      amount: string;
+      slippage?: string;
+      jitoTipLamports?: number;
+    },
+  ) {
+    return await this.solanaService.jupSwap(params);
+  }
 }

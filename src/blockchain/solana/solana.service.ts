@@ -19,7 +19,6 @@ export type TokenBalance = {
   decimals: number;
   uiAmount: number;
 };
-
 @Injectable()
 export class SolanaService {
   private client: Connection;
@@ -120,30 +119,92 @@ export class SolanaService {
     };
   }
 
-  async jupSwap(
-    fromToken: string,
-    toToken: string,
-    amount: string,
-    slippage: string,
-    jitoTipLamports: number = 0
-  ) {
+  private async signAndSendTransaction(transaction: VersionedTransaction) {
+    // Sign the transaction
+    transaction.sign([this.wallet.payer]);
+
+    // Get the latest block hash
+    const latestBlockHash = await this.client.getLatestBlockhash();
+
+    // Execute the transaction
+    const rawTransaction = transaction.serialize();
+    const txid = await this.client.sendRawTransaction(rawTransaction, {
+      skipPreflight: true,
+      maxRetries: 2,
+    });
+
+    this.logger.log(`Transaction sent: ${txid}`);
+    this.logger.log("Waiting for transaction to confirm...");
+
+    await this.client.confirmTransaction({
+      blockhash: latestBlockHash.blockhash,
+      lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
+      signature: txid,
+    });
+    this.logger.log(`Transaction confirmed: ${txid}`);
+
+    return txid;
+  }
+
+  private async signAndSendTransactionJito(transaction: VersionedTransaction) {
+    // Sign the transaction
+    transaction.sign([this.wallet.payer]);
+
+    // Get the latest block hash from Jito client
+    const latestBlockHash = await this.client.getLatestBlockhash();
+
+    // Execute the transaction using Jito client
+    const rawTransaction = transaction.serialize();
+    const txid = await this.jitoClient.sendRawTransaction(rawTransaction, {
+      skipPreflight: true,
+      maxRetries: 2,
+    });
+
+    this.logger.log(`Transaction sent to Jito: ${txid}`);
+    this.logger.log("Waiting for transaction to confirm...");
+
+    await this.client.confirmTransaction({
+      blockhash: latestBlockHash.blockhash,
+      lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
+      signature: txid,
+    });
+    this.logger.log(`Transaction confirmed on Jito: ${txid}`);
+
+    return txid;
+  }
+
+  async jupSwap({
+    fromToken,
+    toToken,
+    amount,
+    slippage = "50",
+    jitoTipLamports = 0,
+  }: {
+    fromToken: string;
+    toToken: string;
+    amount: string;
+    slippage?: string;
+    jitoTipLamports?: number;
+  }) {
     const swapResult = {
       // amountBaught: 0n,
       txid: "",
       solscanLink: "",
     };
 
+    const withJito = jitoTipLamports > 0;
+
     this.logger.log(
       `Starting JUP swap
       fromToken: ${fromToken}
       toToken: ${toToken}
       amount: ${amount}
-      slippage: ${slippage}\n`
+      slippage: ${slippage}
+      withJito: ${withJito}
+      jitoTipLamports: ${jitoTipLamports}\n`
     );
 
-    // const balanceBefore = await this.getTokenBalance(this.wallet.publicKey, toToken);
-
-    // console.log("Balance before: ", balanceBefore);
+    //todo get balance from DB
 
     // Swapping SOL to USDC with input 0.1 SOL and 0.5% slippage
     const quoteResponse = await (
@@ -157,17 +218,17 @@ export class SolanaService {
     let prioritizationFeeLamports: any = {
       priorityLevelWithMaxLamports: {
         maxLamports: 10000000,
-        priorityLevel: "veryHigh",
+        priorityLevel: "veryHigh", // If you want to land transaction fast, set this to use `veryHigh`. You will pay on average higher priority fee.
       },
     };
 
-    if (jitoTipLamports > 0) {
+    if (withJito) {
       prioritizationFeeLamports = {
         jitoTipLamports,
       };
     }
 
-    const { swapTransaction } = await (
+    const swapTransactionJson = await (
       await fetch("https://quote-api.jup.ag/v6/swap", {
         method: "POST",
         headers: {
@@ -187,41 +248,22 @@ export class SolanaService {
       })
     ).json();
 
+    if (swapTransactionJson.error) {
+      throw new Error("JupSwap error: " + swapTransactionJson.error);
+    }
+
+    const swapTransaction = swapTransactionJson.swapTransaction;
+
     // deserialize the transaction
     const swapTransactionBuf = Buffer.from(swapTransaction, "base64");
     var transaction = VersionedTransaction.deserialize(swapTransactionBuf);
 
-    // sign the transaction
-    transaction.sign([this.wallet.payer]);
+    // Use Jito client if tip is provided, otherwise use regular client
+    const txid = withJito
+      ? await this.signAndSendTransactionJito(transaction)
+      : await this.signAndSendTransaction(transaction);
 
-    // get the latest block hash
-    const latestBlockHash = await this.client.getLatestBlockhash();
-
-    // Execute the transaction
-    const rawTransaction = transaction.serialize();
-    const txid = await this.client.sendRawTransaction(rawTransaction, {
-      skipPreflight: true,
-      maxRetries: 2,
-    });
-
-    this.logger.log(`Transaction sent: ${txid}`);
-
-    this.logger.log("Waiting for transaction to confirm...");
-
-    await this.client.confirmTransaction({
-      blockhash: latestBlockHash.blockhash,
-      lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
-      signature: txid,
-    });
-    this.logger.log(`Transaction confirmed: ${txid}`);
-
-    // const balanceAfter = await this.getTokenBalance(
-    //   this.wallet.publicKey,
-    //   toToken
-    // );
-
-    // // Calculate tokens received
-    // const tokensReceived = balanceAfter - balanceBefore;
+    // todo calculate tokens received
 
     // swapResult.amountBaught = BigInt(tokensReceived);
     swapResult.txid = txid;
