@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { Telegraf } from 'telegraf';
+import { Injectable } from "@nestjs/common";
+import { Telegraf } from "telegraf";
 
 @Injectable()
 export class LoggerService {
@@ -9,16 +9,38 @@ export class LoggerService {
     this.telegram = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
   }
 
-  async log(message: string, level: 'info' | 'error' | 'warn' = 'info'): Promise<void> {
-    console.log(`[${level.toUpperCase()}] ${message}`);
+  async log(
+    message: string,
+    level: "info" | "error" | "warn" | "debug" = "info"
+  ): Promise<void> {
+    switch (level) {
+      case "error":
+        console.error(`[ERROR] ${message}`);
+        break;
+      case "warn":
+        console.warn(`[WARN] ${message}`);
+        break;
+      case "debug":
+        console.log(`[DEBUG] ${message}`);
+        break;
+      default:
+        console.info(`[INFO] ${message}`);
+    }
   }
 
-  async telegramNotify(message: string, chatId: string, topicId?: number): Promise<void> {
+  async telegramNotify(
+    message: string,
+    chatId: string,
+    topicId?: number
+  ): Promise<void> {
     try {
       const options = topicId ? { message_thread_id: topicId } : {};
       await this.telegram.telegram.sendMessage(chatId, message, options);
     } catch (error) {
-      await this.log(`Failed to send telegram notification: ${error.message}`, 'error');
+      await this.log(
+        `Failed to send telegram notification: ${error.message}`,
+        "error"
+      );
     }
   }
-} 
+}
