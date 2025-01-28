@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DDController } from './dd.controller';
 import { DDService } from './dd.service';
-import { Order } from '../../order/order.entity';
+import { Order } from '../../enities/order.entity';
 import { EVMModule } from '../../blockchain/evm/evm.module';
 import { SolanaModule } from '../../blockchain/solana/solana.module';
 import { DexRouterModule } from '../../dex-router/dex-router.module';

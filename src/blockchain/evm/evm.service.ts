@@ -71,4 +71,25 @@ export class EVMService {
       throw error;
     }
   }
+
+  async getTokenDecimals(
+    tokenAddress: string,
+    chainId: number,
+  ): Promise<number> {
+    const client = this.getClient(chainId);
+    const decimals = await client.readContract({
+      address: tokenAddress as `0x${string}`,
+      abi: [
+        {
+          inputs: [],
+          name: 'decimals',
+          outputs: [{ name: '', type: 'uint8' }],
+          stateMutability: 'view',
+          type: 'function',
+        },
+      ],
+      functionName: 'decimals',
+    });
+    return decimals;
+  }
 } 

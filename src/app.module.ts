@@ -5,7 +5,7 @@ import { EVMModule } from "./blockchain/evm/evm.module";
 import { SolanaModule } from "./blockchain/solana/solana.module";
 import { DexRouterModule } from "./dex-router/dex-router.module";
 import { DDModule } from "./strategies/dd/dd.module";
-import { Order } from "./order/order.entity";
+import { Order } from "./enities/order.entity";
 
 import { config } from "dotenv";
 config();
