@@ -42,11 +42,11 @@ export class SolanaService {
 
   async getTokenBalance(
     tokenAddress: string,
-    wallet: PublicKey = this.wallet,
+    wallet = this.wallet,
   ): Promise<number> {
     const mint = new PublicKey(tokenAddress);
 
-    const tokenAccounts = await this.client.getTokenAccountsByOwner(wallet, {
+    const tokenAccounts = await this.client.getTokenAccountsByOwner(wallet.publicKey, {
       programId: TOKEN_PROGRAM_ID,
     });
 

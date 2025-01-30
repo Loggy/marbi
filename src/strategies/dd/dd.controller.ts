@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Query } from '@nestjs/common';
+import { Controller, Post, Body, Get, Query, UsePipes, ValidationPipe } from '@nestjs/common';
 import { DDService } from './dd.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 
@@ -7,6 +7,7 @@ export class DDController {
   constructor(private readonly ddService: DDService) {}
 
   @Post()
+  @UsePipes(new ValidationPipe({ transform: true }))
   async createOrder(@Body() params: CreateOrderDto) {
     return await this.ddService.createOrder(params);
   }

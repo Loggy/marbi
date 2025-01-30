@@ -6,6 +6,7 @@ import { SolanaModule } from "./blockchain/solana/solana.module";
 import { DexRouterModule } from "./dex-router/dex-router.module";
 import { DDModule } from "./strategies/dd/dd.module";
 import { Order } from "./enities/order.entity";
+import { TokenBalance } from "./enities/token-balance.entity";
 
 import { config } from "dotenv";
 config();
@@ -19,7 +20,7 @@ config();
       username: process.env.DB_USERNAME,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
-      entities: [Order],
+      entities: [Order, TokenBalance],
       synchronize: true, // Set to false in production
     }),
     LoggerModule,

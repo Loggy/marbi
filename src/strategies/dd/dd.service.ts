@@ -24,22 +24,6 @@ export class DDService {
     private logger: LoggerService
   ) {}
 
-  private async getTokenDecimals(
-    address: string,
-    networkName: string
-  ): Promise<number> {
-    if (networkName === 'solana') {
-      const tokenInfo = await this.solanaService.getTokenInfo(address);
-      return tokenInfo.decimals;
-    } else {
-      const decimals = await this.evmService.getTokenDecimals(
-        address,
-        parseInt(networkName)
-      );
-      return decimals;
-    }
-  }
-
   async updateTokenBalance(
     address: string,
     chainId: string,
@@ -50,15 +34,18 @@ export class DDService {
     let tokenDecimals: number;
 
     if (networkName === 'solana') {
-      balance = BigInt(await this.solanaService.getTokenBalance(address));
-      tokenDecimals = decimals || await this.getTokenDecimals(address, networkName);
+      const tokenInfo = await this.solanaService.getTokenInfo(address);
+      tokenDecimals = decimals || tokenInfo.decimals;
     } else {
       balance = await this.evmService.getTokenBalance(
         address,
         process.env.EVM_WALLET_ADDRESS,
         parseInt(chainId)
       );
-      tokenDecimals = decimals || await this.getTokenDecimals(address, networkName);
+      tokenDecimals = decimals || await this.evmService.getTokenDecimals(
+        address,
+        parseInt(networkName)
+      );
     }
 
     const existingBalance = await this.tokenBalanceRepository.findOne({
@@ -122,6 +109,7 @@ export class DDService {
     amount: string,
     networkName: string
   ): Promise<any> {
+    await this.logger.log(`Requesting route for ${networkName} with amount ${amount}.`);
     if (networkName === 'solana') {
       return this.dexRouterService.getSolanaRoute({
         fromToken: networkConfig.StartTokenAddress,
@@ -145,12 +133,12 @@ export class DDService {
     return Promise.all([
       this.requestRoute(
         params.config.Network0,
-        params.spread_entry.from_network_amount_in_tokens.toString(),
+        params.config.Amounts_In[0].amount.toString(),
         params.config.Network0.NetworkName
       ),
       this.requestRoute(
         params.config.Network1,
-        params.spread_entry.to_network_amount_in_tokens.toString(),
+        params.config.Amounts_In[1].amount.toString(),
         params.config.Network1.NetworkName
       ),
     ]).then(([network0Result, network1Result]) => ({
@@ -215,13 +203,13 @@ export class DDService {
     });
 
     await this.logger.log(
-      `Creating new DD order for ${params.config.Ticker} with amount ${params.spread_entry.amount} USDC`
+      `Creating new DD order for ${params.config.Ticker} with amount ${params.config.Amounts_In[0].amount + params.config.Amounts_In[1].amount} USDC`
     );
 
     try {
       // First phase: Get routes (retried together)
       const routes = await this.requestRoutesWithRetry(params);
-
+      await this.logger.log(`Routes: ${JSON.stringify(routes)}`);
       // Second phase: Execute transactions (retried separately)
       const [network0Tx, network1Tx] = await Promise.all([
         this.executeTransaction(routes.network0, params.config.Network0.NetworkName),
