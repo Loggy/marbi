@@ -7,7 +7,7 @@ import { EVMService } from "../../blockchain/evm/evm.service";
 import { SolanaService } from "../../blockchain/solana/solana.service";
 import { DexRouterService } from "../../dex-router/dex-router.service";
 import { LoggerService } from "../../logger/logger.service";
-import { CreateOrderDto, NetworkConfig } from './dto/create-order.dto';
+import { CreateOrderDto, NetworkConfig } from "./dto/create-order.dto";
 
 @Injectable()
 export class DDService {
@@ -33,7 +33,7 @@ export class DDService {
     let balance: bigint;
     let tokenDecimals: number;
 
-    if (networkName === 'solana') {
+    if (networkName === "solana") {
       const tokenInfo = await this.solanaService.getTokenInfo(address);
       tokenDecimals = decimals || tokenInfo.decimals;
     } else {
@@ -42,14 +42,16 @@ export class DDService {
         process.env.EVM_WALLET_ADDRESS,
         parseInt(chainId)
       );
-      tokenDecimals = decimals || await this.evmService.getTokenDecimals(
-        address,
-        parseInt(networkName)
-      );
+      tokenDecimals =
+        decimals ||
+        (await this.evmService.getTokenDecimals(
+          address,
+          parseInt(networkName)
+        ));
     }
 
     const existingBalance = await this.tokenBalanceRepository.findOne({
-      where: { address, chainId }
+      where: { address, chainId },
     });
 
     if (existingBalance) {
@@ -61,7 +63,7 @@ export class DDService {
         address,
         chainId,
         balance: balance.toString(),
-        decimals: tokenDecimals
+        decimals: tokenDecimals,
       });
       return await this.tokenBalanceRepository.save(newBalance);
     }
@@ -84,7 +86,7 @@ export class DDService {
         network0.NetworkName,
         parseInt(network0.FinishTokenDecimals),
         network0.NetworkName
-      )
+      ),
     ]);
 
     // Update Network1 token balances
@@ -100,7 +102,7 @@ export class DDService {
         network1.NetworkName,
         parseInt(network1.FinishTokenDecimals),
         network1.NetworkName
-      )
+      ),
     ]);
   }
 
@@ -109,8 +111,10 @@ export class DDService {
     amount: string,
     networkName: string
   ): Promise<any> {
-    await this.logger.log(`Requesting route for ${networkName} with amount ${amount}.`);
-    if (networkName === 'solana') {
+    await this.logger.log(
+      `Requesting route for ${networkName} with amount ${amount}.`
+    );
+    if (networkName === "solana") {
       return this.dexRouterService.getSolanaRoute({
         fromToken: networkConfig.StartTokenAddress,
         toToken: networkConfig.FinishTokenAddress,
@@ -129,7 +133,9 @@ export class DDService {
     }
   }
 
-  private async requestRoutes(params: CreateOrderDto): Promise<{ network0: any; network1: any }> {
+  private async requestRoutes(
+    params: CreateOrderDto
+  ): Promise<{ network0: any; network1: any }> {
     return Promise.all([
       this.requestRoute(
         params.config.Network0,
@@ -157,11 +163,13 @@ export class DDService {
       if (retries > 0) {
         await this.logger.log(
           `Retry attempt ${this.MAX_RETRIES - retries + 1}: ${error.message}`,
-          'warn'
+          "warn"
         );
         return this.requestRoutesWithRetry(params, retries - 1);
       }
-      throw new Error(`Failed after ${this.MAX_RETRIES} retries: ${error.message}`);
+      throw new Error(
+        `Failed after ${this.MAX_RETRIES} retries: ${error.message}`
+      );
     }
   }
 
@@ -171,8 +179,8 @@ export class DDService {
     retries = this.MAX_RETRIES
   ): Promise<any> {
     const execute = async () => {
-      if (networkName === 'solana') {
-        return this.solanaService.jupSwap(route);
+      if (networkName === "solana") {
+        return this.solanaService.executeSwap(route);
       } else {
         return this.evmService.signAndSendTransaction(
           1, // chainId - should be determined based on network
@@ -188,11 +196,13 @@ export class DDService {
       if (retries > 0) {
         await this.logger.log(
           `Retry attempt ${this.MAX_RETRIES - retries + 1} for ${networkName}: ${error.message}`,
-          'warn'
+          "warn"
         );
         return this.executeTransaction(route, networkName, retries - 1);
       }
-      throw new Error(`Failed after ${this.MAX_RETRIES} retries for ${networkName}: ${error.message}`);
+      throw new Error(
+        `Failed after ${this.MAX_RETRIES} retries for ${networkName}: ${error.message}`
+      );
     }
   }
 
@@ -212,8 +222,14 @@ export class DDService {
       await this.logger.log(`Routes: ${JSON.stringify(routes)}`);
       // Second phase: Execute transactions (retried separately)
       const [network0Tx, network1Tx] = await Promise.all([
-        this.executeTransaction(routes.network0, params.config.Network0.NetworkName),
-        this.executeTransaction(routes.network1, params.config.Network1.NetworkName),
+        this.executeTransaction(
+          routes.network0,
+          params.config.Network0.NetworkName
+        ),
+        this.executeTransaction(
+          routes.network1,
+          params.config.Network1.NetworkName
+        ),
       ]);
 
       // Update token balances after successful execution
@@ -235,7 +251,7 @@ export class DDService {
       order.result = {
         error: error.message,
       };
-      await this.logger.log(`Order failed: ${error.message}`, 'error');
+      await this.logger.log(`Order failed: ${error.message}`, "error");
     }
 
     return await this.orderRepository.save(order);

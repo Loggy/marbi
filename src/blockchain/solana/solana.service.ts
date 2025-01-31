@@ -42,13 +42,16 @@ export class SolanaService {
 
   async getTokenBalance(
     tokenAddress: string,
-    wallet = this.wallet,
+    wallet = this.wallet
   ): Promise<number> {
     const mint = new PublicKey(tokenAddress);
 
-    const tokenAccounts = await this.client.getTokenAccountsByOwner(wallet.publicKey, {
-      programId: TOKEN_PROGRAM_ID,
-    });
+    const tokenAccounts = await this.client.getTokenAccountsByOwner(
+      wallet.publicKey,
+      {
+        programId: TOKEN_PROGRAM_ID,
+      }
+    );
 
     for (const { account } of tokenAccounts.value) {
       const accountInfo = AccountLayout.decode(account.data);
@@ -172,7 +175,7 @@ export class SolanaService {
     return txid;
   }
 
-  async jupSwap({
+  async executeSwap({
     fromToken,
     toToken,
     amount,
@@ -276,14 +279,14 @@ export class SolanaService {
   async getTokenInfo(tokenAddress: string): Promise<{ decimals: number }> {
     const mint = new PublicKey(tokenAddress);
     const mintAccount = await this.client.getAccountInfo(mint);
-    
+
     if (!mintAccount) {
-      throw new Error('Token mint not found');
+      throw new Error("Token mint not found");
     }
 
     const mintInfo = MintLayout.decode(mintAccount.data);
     return {
-      decimals: mintInfo.decimals
+      decimals: mintInfo.decimals,
     };
   }
 }

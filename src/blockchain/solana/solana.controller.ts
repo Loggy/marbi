@@ -19,8 +19,8 @@ export class SolanaController {
       amount: string;
       slippage?: string;
       jitoTipLamports?: number;
-    },
+    }
   ) {
-    return await this.solanaService.jupSwap(params);
+    return await this.solanaService.executeSwap(params);
   }
 }

@@ -16,6 +16,6 @@ export class EVMController {
       slippage?: string;
     },
   ) {
-    return await this.evmService.okxSwap(params);
+    return await this.evmService.executeSwap(params);
   }
 }

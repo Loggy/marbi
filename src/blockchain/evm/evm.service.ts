@@ -1,30 +1,50 @@
 import { Injectable } from "@nestjs/common";
 import {
-  createPublicClient,
   http,
-  PublicClient,
   createWalletClient,
   WalletClient,
+  publicActions,
+  type PublicActions,
+  erc20Abi,
 } from "viem";
 import { LoggerService } from "../../logger/logger.service";
+import { privateKeyToAccount } from "viem/accounts";
 import { executeOkxSwap } from "./providers/okx";
-import { run } from "./providers/okx/test";
+import { base, mainnet, arbitrum, bsc, type Chain } from "viem/chains";
+
+const createViemClient = (chain: Chain, rpcUrl: string) => {
+  return createWalletClient({
+    chain: chain,
+    transport: http(rpcUrl),
+    account: privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`),
+  }).extend(publicActions);
+};
+
+// Define a type for the chain clients to avoid inference issues
+type ChainClients = {
+  [K in "1" | "8453" | "42161" | "56"]: WalletClient & PublicActions;
+};
+
+const CHAIN_CLIENTS: ChainClients = {
+  "1": createViemClient(mainnet, process.env.MAINNET_RPC_URL as string),
+  "8453": createViemClient(base, process.env.BASE_RPC_URL as string),
+  "42161": createViemClient(arbitrum, process.env.ARBITRUM_RPC_URL as string),
+  "56": createViemClient(bsc, process.env.BSC_RPC_URL as string),
+};
+
+// Update the WalletClientConfig type to use our new ChainClients type
+export type WalletClientConfig = ChainClients[keyof ChainClients];
 
 @Injectable()
 export class EVMService {
-  private client: Map<number, PublicClient> = new Map();
-  private walletClients: Map<number, WalletClient> = new Map();
-
   constructor(private readonly logger: LoggerService) {}
 
-  private getClient(chainId: number): PublicClient {
-    if (!this.client.has(chainId)) {
-      const client = createPublicClient({
-        transport: http(process.env[`RPC_URL_${chainId}`]),
-      });
-      this.client.set(chainId, client);
+  private getClient(chainId: string | number): WalletClientConfig {
+    const chainIdStr = chainId.toString();
+    if (chainIdStr in CHAIN_CLIENTS) {
+      return CHAIN_CLIENTS[chainIdStr as keyof ChainClients];
     }
-    return this.client.get(chainId);
+    throw new Error(`Chain ID ${chainId} is not supported`);
   }
 
   async getNativeBalance(address: string, chainId: number): Promise<bigint> {
@@ -40,15 +60,7 @@ export class EVMService {
     const client = this.getClient(chainId);
     const balance = await client.readContract({
       address: tokenAddress as `0x${string}`,
-      abi: [
-        {
-          inputs: [{ name: "account", type: "address" }],
-          name: "balanceOf",
-          outputs: [{ name: "", type: "uint256" }],
-          stateMutability: "view",
-          type: "function",
-        },
-      ],
+      abi: erc20Abi,
       functionName: "balanceOf",
       args: [address as `0x${string}`],
     });
@@ -63,13 +75,7 @@ export class EVMService {
     // Implementation depends on your specific needs
     // This is a basic example
     try {
-      // Create wallet client if doesn't exist
-      if (!this.walletClients.has(chainId)) {
-        const client = createWalletClient({
-          transport: http(process.env[`RPC_URL_${chainId}`]),
-        });
-        this.walletClients.set(chainId, client);
-      }
+      const client = this.getClient(chainId);
 
       // Send transaction logic here
       // Return transaction hash
@@ -85,28 +91,21 @@ export class EVMService {
 
   async getTokenDecimals(
     tokenAddress: string,
-    chainId: number,
+    chainId: number
   ): Promise<number> {
     const client = this.getClient(chainId);
     const decimals = await client.readContract({
       address: tokenAddress as `0x${string}`,
-      abi: [
-        {
-          inputs: [],
-          name: 'decimals',
-          outputs: [{ name: '', type: 'uint8' }],
-          stateMutability: 'view',
-          type: 'function',
-        },
-      ],
-      functionName: 'decimals',
+      abi: erc20Abi,
+      functionName: "decimals",
     });
     return decimals;
   }
-	async okxSwap(params: any): Promise<any> {
-		return await executeOkxSwap(params);
-		console.log(params);
-		// await sendAndSwapViem(params);
-		return "ok";
-	}
+
+  async executeSwap(params: any): Promise<any> {
+    return await executeOkxSwap({
+      ...params,
+      client: this.getClient(params.chainId),
+    });
+  }
 }

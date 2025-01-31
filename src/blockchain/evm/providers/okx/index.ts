@@ -1,18 +1,10 @@
 // --------------------- npm package ---------------------
-import { Web3 } from "web3";
 import * as cryptoJS from "crypto-js";
-import { createWalletClient, erc20Abi, http, publicActions } from "viem";
-import { privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
-import { base } from "viem/chains";
-
+import { erc20Abi, Address } from "viem";
+import { privateKeyToAddress } from "viem/accounts";
+import { WalletClientConfig } from "../../evm.service";
 import { config } from "dotenv";
 config();
-
-const viemClient = createWalletClient({
-  chain: base,
-  transport: http(process.env.BASE_RPC_URL),
-  account: privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`),
-}).extend(publicActions);
 
 const API_BASE_URL = "https://www.okx.com/api/v5/dex/aggregator";
 
@@ -28,27 +20,11 @@ const DEFAULT_SLIPPAGE = "0.03";
 
 const USER_ADDRESS = privateKeyToAddress(PRIVATE_KEY as `0x${string}`);
 
-const CHAIN_CONFIGS = {
-  "1": {
-    rpcUrl: process.env.MAINNET_RPC_URL as string,
-    spenderAddress: "0x40aA958dd87FC8305b97f2BA922CDdCa374bcD7f",
-    web3: new Web3(process.env.MAINNET_RPC_URL as string),
-  },
-  "8453": {
-    rpcUrl: process.env.BASE_RPC_URL as string,
-    spenderAddress: "0x57df6092665eb6058DE53939612413ff4B09114E",
-    web3: new Web3(process.env.BASE_RPC_URL as string),
-  },
-  "42161": {
-    rpcUrl: process.env.ARBITRUM_RPC_URL as string,
-    spenderAddress: "0x70cBb871E8f30Fc8Ce23609E9E0Ea87B6b222F58",
-    web3: new Web3(process.env.ARBITRUM_RPC_URL as string),
-  },
-  "56": {
-    rpcUrl: process.env.BSC_RPC_URL as string,
-    spenderAddress: "0x2c34A2Fb1d0b4f55de51E1d0bDEfaDDce6b7cDD6",
-    web3: new Web3(process.env.BSC_RPC_URL as string),
-  },
+const SPENDER_ADDRESSES = {
+  "1": "0x40aA958dd87FC8305b97f2BA922CDdCa374bcD7f",
+  "8453": "0x57df6092665eb6058DE53939612413ff4B09114E",
+  "42161": "0x70cBb871E8f30Fc8Ce23609E9E0Ea87B6b222F58",
+  "56": "0x2c34A2Fb1d0b4f55de51E1d0bDEfaDDce6b7cDD6",
 } as const;
 
 function getAggregatorRequestUrl(methodName, queryParams) {
@@ -76,23 +52,25 @@ function getHeaderParams(path: string) {
 }
 
 type GetAllowanceParams = {
-  ownerAddress: string;
-  spenderAddress: string;
-  web3: Web3;
-  tokenAddress: string;
+  ownerAddress: Address;
+  spenderAddress: Address;
+  client: WalletClientConfig;
+  tokenAddress: Address;
 };
 
 async function getAllowance({
   ownerAddress,
   spenderAddress,
-  web3,
+  client,
   tokenAddress,
 }: GetAllowanceParams) {
-  const tokenContract = new web3.eth.Contract(erc20Abi, tokenAddress);
   try {
-    const allowance = await tokenContract.methods
-      .allowance(ownerAddress, spenderAddress)
-      .call();
+    const allowance = await client.readContract({
+      address: tokenAddress,
+      abi: erc20Abi,
+      functionName: "allowance",
+      args: [ownerAddress, spenderAddress],
+    });
     return parseFloat(allowance as unknown as string);
   } catch (error) {
     console.error("Failed to query allowance:", error);
@@ -116,52 +94,62 @@ async function approveTransaction(
 
   const headers = getHeaderParams(apiRequestUrl);
   console.log("headers:", headers);
-  return fetch(apiRequestUrl, {
+  const res = await fetch(apiRequestUrl, {
     method: "get",
     headers,
-  })
-    .then((res) => res.json())
-    .then((res) => {
-      return res;
-    });
+  });
+  return res.json();
 }
 
 type SendApproveTxParams = {
-  ownerAddress: string;
+  ownerAddress: Address;
   fromAmount: string;
-  web3: Web3;
+  client: WalletClientConfig;
   chainId: string;
-  fromTokenAddress: string;
+  fromTokenAddress: Address;
+  spenderAddress: Address;
 };
 
 async function sendApproveTx({
   ownerAddress,
   fromAmount,
-  web3,
+  client,
   chainId,
   fromTokenAddress,
+  spenderAddress,
 }: SendApproveTxParams) {
-  let gasPrice = await web3.eth.getGasPrice();
-  let nonce = await web3.eth.getTransactionCount(ownerAddress);
+ 
   const { data } = await approveTransaction({
     chainId: chainId,
     tokenContractAddress: fromTokenAddress,
     approveAmount: fromAmount,
   });
 
-  const txObject = {
-    nonce: nonce,
-    to: fromTokenAddress, // approve token address
-    gasLimit: data[0].gasLimit * 2, // avoid GasLimit too low
-    gasPrice: (gasPrice * BigInt(3)) / BigInt(2), // avoid GasPrice too low
-    data: data[0].data, // approve callData
-    value: 0, // approve value fix 0
-  };
-  const { rawTransaction } = await web3.eth.accounts.signTransaction(
-    txObject,
-    PRIVATE_KEY
-  );
-  await web3.eth.sendSignedTransaction(rawTransaction);
+  const hash = await client.writeContract({
+    address: fromTokenAddress,
+    abi: erc20Abi,
+    functionName: 'approve',
+    args: [spenderAddress, BigInt(fromAmount)],
+    chain: client.chain,
+    account: client.account,
+  });
+
+  return hash;
+  // const txObject = {
+  //   nonce: nonce,
+  //   to: fromTokenAddress, // approve token address
+  //   gasLimit: data[0].gasLimit * 2, // avoid GasLimit too low
+  //   gasPrice: (gasPrice * BigInt(3)) / BigInt(2), // avoid GasPrice too low
+  //   data: data[0].data, // approve callData
+  //   value: 0, // approve value fix 0
+  // };
+
+  // const serializedTransaction = await client.signTransaction({
+  //   ...txObject,
+  //   account: client.account,
+  //   chain: client.chain,
+  // });
+  // await client.sendRawTransaction({ serializedTransaction });
 }
 
 type QuoteParams = {
@@ -182,14 +170,14 @@ async function getQuote(quoteParams: QuoteParams) {
 
 type SwapParams = {
   chainId: string;
-  fromTokenAddress: string;
-  toTokenAddress: string;
+  fromTokenAddress: Address;
+  toTokenAddress: Address;
   amount: string;
   slippage: string;
-  userWalletAddress: string;
+  userWalletAddress: Address;
 };
 
-async function getSwapData(swapParams: SwapParams) {
+export async function getSwapData(swapParams: SwapParams) {
   const apiRequestUrl = getAggregatorRequestUrl("/swap", swapParams);
   const res = await fetch(apiRequestUrl, {
     method: "get",
@@ -198,17 +186,22 @@ async function getSwapData(swapParams: SwapParams) {
   return res.json();
 }
 
-async function sendAndSwapViem(swapData: any) {
-  const nonce = await viemClient.getTransactionCount({
-    address: viemClient.account.address,
+type SendAndSwapParams = {
+  swapData: any;
+  client: WalletClientConfig;
+};
+
+async function sendAndSwap({ swapData, client }: SendAndSwapParams) {
+  const nonce = await client.getTransactionCount({
+    address: client.account.address,
   });
 
-  const swapDataTxInfo = swapData.swapData[0].tx;
+  const swapDataTxInfo = swapData[0].tx;
 
   try {
-    const tx = await viemClient.signTransaction({
-      chain: base,
-      account: viemClient.account,
+    const tx = await client.signTransaction({
+      chain: client.chain,
+      account: client.account,
       data: swapDataTxInfo.data,
       gasPrice: BigInt(swapDataTxInfo.gasPrice) * BigInt(GAS_PRICE_RATIO), // avoid GasPrice too low,
       to: swapDataTxInfo.to,
@@ -216,10 +209,10 @@ async function sendAndSwapViem(swapData: any) {
       gas: BigInt(swapDataTxInfo.gas) * BigInt(GAS_PRICE_RATIO), // avoid GasLimit too low
       nonce,
     });
-    const hash = await viemClient.sendRawTransaction({
+    const hash = await client.sendRawTransaction({
       serializedTransaction: tx,
     });
-    const receipt = await viemClient.waitForTransactionReceipt({ hash });
+    const receipt = await client.waitForTransactionReceipt({ hash });
     const logs = receipt.logs;
   } catch (error) {
     console.log("error:", error);
@@ -228,10 +221,11 @@ async function sendAndSwapViem(swapData: any) {
 
 type ExecuteSwapParams = {
   chainId: string;
-  fromTokenAddress: string;
-  toTokenAddress: string;
+  fromTokenAddress: Address;
+  toTokenAddress: Address;
   fromAmount: string;
   slippage: string;
+  client: WalletClientConfig;
 };
 
 export async function executeOkxSwap({
@@ -240,36 +234,27 @@ export async function executeOkxSwap({
   toTokenAddress,
   fromAmount,
   slippage = DEFAULT_SLIPPAGE,
+  client,
 }: ExecuteSwapParams) {
-  if (!CHAIN_CONFIGS[chainId]) {
-    throw new Error(`Chain ID ${chainId} is not supported`);
-  }
-  const chainConfig = CHAIN_CONFIGS[chainId as keyof typeof CHAIN_CONFIGS];
-  const spenderAddress = chainConfig.spenderAddress;
+  const spenderAddress =
+    SPENDER_ADDRESSES[chainId as keyof typeof SPENDER_ADDRESSES];
 
   const allowanceAmount = await getAllowance({
     ownerAddress: USER_ADDRESS,
     spenderAddress,
-    web3: chainConfig.web3,
+    client,
     tokenAddress: fromTokenAddress,
   });
   if (allowanceAmount < parseFloat(fromAmount)) {
     await sendApproveTx({
       ownerAddress: USER_ADDRESS,
       fromAmount,
-      web3: chainConfig.web3,
+      client,
       chainId: chainId,
       fromTokenAddress,
+      spenderAddress,
     });
   }
-
-  // don't need that actually
-  // const quote = await getQuote({
-  //   amount: fromAmount,
-  //   chainId,
-  //   toTokenAddress,
-  //   fromTokenAddress,
-  // });
 
   const swapData = await getSwapData({
     chainId,
@@ -284,9 +269,8 @@ export async function executeOkxSwap({
     throw new Error(swapData.message);
   }
 
-  await sendAndSwapViem({
+  await sendAndSwap({
     swapData: swapData.data,
-    web3: chainConfig.web3,
-    userAddress: USER_ADDRESS,
+    client,
   });
 }
