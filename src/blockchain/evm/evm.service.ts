@@ -1,6 +1,14 @@
-import { Injectable } from '@nestjs/common';
-import { createPublicClient, http, PublicClient, createWalletClient, WalletClient } from 'viem';
-import { LoggerService } from '../../logger/logger.service';
+import { Injectable } from "@nestjs/common";
+import {
+  createPublicClient,
+  http,
+  PublicClient,
+  createWalletClient,
+  WalletClient,
+} from "viem";
+import { LoggerService } from "../../logger/logger.service";
+import { executeOkxSwap } from "./providers/okx";
+import { run } from "./providers/okx/test";
 
 @Injectable()
 export class EVMService {
@@ -27,21 +35,21 @@ export class EVMService {
   async getTokenBalance(
     tokenAddress: string,
     address: string,
-    chainId: number,
+    chainId: number
   ): Promise<bigint> {
     const client = this.getClient(chainId);
     const balance = await client.readContract({
       address: tokenAddress as `0x${string}`,
       abi: [
         {
-          inputs: [{ name: 'account', type: 'address' }],
-          name: 'balanceOf',
-          outputs: [{ name: '', type: 'uint256' }],
-          stateMutability: 'view',
-          type: 'function',
+          inputs: [{ name: "account", type: "address" }],
+          name: "balanceOf",
+          outputs: [{ name: "", type: "uint256" }],
+          stateMutability: "view",
+          type: "function",
         },
       ],
-      functionName: 'balanceOf',
+      functionName: "balanceOf",
       args: [address as `0x${string}`],
     });
     return balance;
@@ -50,7 +58,7 @@ export class EVMService {
   async signAndSendTransaction(
     chainId: number,
     transaction: any,
-    privateKey: string,
+    privateKey: string
   ): Promise<string> {
     // Implementation depends on your specific needs
     // This is a basic example
@@ -62,13 +70,23 @@ export class EVMService {
         });
         this.walletClients.set(chainId, client);
       }
-      
+
       // Send transaction logic here
       // Return transaction hash
-      return '0x...';
+      return "0x...";
     } catch (error) {
-      await this.logger.log(`Failed to send EVM transaction: ${error.message}`, 'error');
+      await this.logger.log(
+        `Failed to send EVM transaction: ${error.message}`,
+        "error"
+      );
       throw error;
     }
   }
-} 
+
+  async okxSwap(params: any): Promise<any> {
+    return await executeOkxSwap(params);
+    console.log(params);
+    // await sendAndSwapViem(params);
+    return "ok";
+  }
+}

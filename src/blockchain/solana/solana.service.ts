@@ -11,7 +11,6 @@ import { TOKEN_PROGRAM_ID, AccountLayout, MintLayout } from "@solana/spl-token";
 import { LoggerService } from "../../logger/logger.service";
 import { Wallet } from "@project-serum/anchor";
 import bs58 from "bs58";
-import { TokenListProvider } from "@solana/spl-token-registry";
 
 export type TokenBalance = {
   mint: string;
