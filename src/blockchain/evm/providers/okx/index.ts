@@ -20,7 +20,7 @@ const DEFAULT_SLIPPAGE = "0.03";
 
 const USER_ADDRESS = privateKeyToAddress(PRIVATE_KEY as `0x${string}`);
 
-const SPENDER_ADDRESSES = {
+export const OKX_SPENDER_ADDRESSES = {
   "1": "0x40aA958dd87FC8305b97f2BA922CDdCa374bcD7f",
   "8453": "0x57df6092665eb6058DE53939612413ff4B09114E",
   "42161": "0x70cBb871E8f30Fc8Ce23609E9E0Ea87B6b222F58",
@@ -237,7 +237,7 @@ export async function executeOkxSwap({
   client,
 }: ExecuteSwapParams) {
   const spenderAddress =
-    SPENDER_ADDRESSES[chainId as keyof typeof SPENDER_ADDRESSES];
+    OKX_SPENDER_ADDRESSES[chainId as keyof typeof OKX_SPENDER_ADDRESSES];
 
   const allowanceAmount = await getAllowance({
     ownerAddress: USER_ADDRESS,

@@ -14,7 +14,7 @@ export class EVMController {
       toToken: string;
       amount: string;
       slippage?: string;
-    },
+    }
   ) {
     return await this.evmService.executeSwap(params);
   }

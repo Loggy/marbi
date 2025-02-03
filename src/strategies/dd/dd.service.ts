@@ -8,6 +8,7 @@ import { SolanaService } from "../../blockchain/solana/solana.service";
 import { DexRouterService } from "../../dex-router/dex-router.service";
 import { LoggerService } from "../../logger/logger.service";
 import { CreateOrderDto, NetworkConfig } from "./dto/create-order.dto";
+import { InitializeDto } from "./dto/initialize-dto";
 
 @Injectable()
 export class DDService {
@@ -255,5 +256,24 @@ export class DDService {
     }
 
     return await this.orderRepository.save(order);
+  }
+
+  async initialize(params: InitializeDto) {
+    const results = {
+      evm: null,
+      solana: null,
+    };
+
+    if (params.evmSettings) {
+      results.evm = await this.evmService.initialize(params.evmSettings);
+    }
+
+    if (params.solanaSettings) {
+      results.solana = await this.solanaService.initialize(
+        params.solanaSettings
+      );
+    }
+
+    return results;
   }
 }
