@@ -71,4 +71,18 @@ export class InitializeDto {
   @Type(() => SolanaSettings)
   @IsOptional()
   solanaSettings?: SolanaSettings;
+} 
+
+export class EVMTokenInfo {
+  @IsString()
+  @IsNotEmpty()
+  tokenAddress: string;
+
+  @IsNumber()
+  @IsNotEmpty()
+  balance: bigint;
+
+  @IsNumber()
+  @IsNotEmpty()
+  allowance: bigint;
 }

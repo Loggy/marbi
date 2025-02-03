@@ -11,11 +11,17 @@ export class TokenBalance {
   @Column()
   chainId: string;
 
-  @Column('bigint')
-  balance: string;
+  @Column("bigint", { default: "0" })
+  balance?: string;
+
+  @Column("bigint", { default: "0" })
+  currentAllowance?: string;
+
+  @Column("bigint", { default: "0" })
+  minAllowance?: string;
 
   @Column()
-  decimals: number;
+  decimals?: number;
 
   @CreateDateColumn()
   createdAt: Date;

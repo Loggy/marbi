@@ -2,13 +2,12 @@ import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { Order } from "../../enities/order.entity";
-import { TokenBalance } from "../../enities/token-balance.entity";
 import { EVMService } from "../../blockchain/evm/evm.service";
 import { SolanaService } from "../../blockchain/solana/solana.service";
 import { DexRouterService } from "../../dex-router/dex-router.service";
 import { LoggerService } from "../../logger/logger.service";
+import { SettingsService } from "../../settings/settings.service";
 import { CreateOrderDto, NetworkConfig } from "./dto/create-order.dto";
-import { InitializeDto } from "./dto/initialize-dto";
 
 @Injectable()
 export class DDService {
@@ -17,58 +16,12 @@ export class DDService {
   constructor(
     @InjectRepository(Order)
     private orderRepository: Repository<Order>,
-    @InjectRepository(TokenBalance)
-    private tokenBalanceRepository: Repository<TokenBalance>,
     private evmService: EVMService,
     private solanaService: SolanaService,
     private dexRouterService: DexRouterService,
+    private settingsService: SettingsService,
     private logger: LoggerService
   ) {}
-
-  async updateTokenBalance(
-    address: string,
-    chainId: string,
-    decimals: number,
-    networkName: string
-  ): Promise<TokenBalance> {
-    let balance: bigint;
-    let tokenDecimals: number;
-
-    if (networkName === "solana") {
-      const tokenInfo = await this.solanaService.getTokenInfo(address);
-      tokenDecimals = decimals || tokenInfo.decimals;
-    } else {
-      balance = await this.evmService.getTokenBalance(
-        address,
-        process.env.EVM_WALLET_ADDRESS,
-        parseInt(chainId)
-      );
-      tokenDecimals =
-        decimals ||
-        (await this.evmService.getTokenDecimals(
-          address,
-          parseInt(networkName)
-        ));
-    }
-
-    const existingBalance = await this.tokenBalanceRepository.findOne({
-      where: { address, chainId },
-    });
-
-    if (existingBalance) {
-      existingBalance.balance = balance.toString();
-      existingBalance.decimals = tokenDecimals;
-      return await this.tokenBalanceRepository.save(existingBalance);
-    } else {
-      const newBalance = this.tokenBalanceRepository.create({
-        address,
-        chainId,
-        balance: balance.toString(),
-        decimals: tokenDecimals,
-      });
-      return await this.tokenBalanceRepository.save(newBalance);
-    }
-  }
 
   private async updateAllTokenBalances(params: CreateOrderDto): Promise<void> {
     const network0 = params.config.Network0;
@@ -76,34 +29,30 @@ export class DDService {
 
     // Update Network0 token balances
     await Promise.all([
-      this.updateTokenBalance(
-        network0.StartTokenAddress,
-        network0.NetworkName,
-        parseInt(network0.StartTokenDecimals),
-        network0.NetworkName
-      ),
-      this.updateTokenBalance(
-        network0.FinishTokenAddress,
-        network0.NetworkName,
-        parseInt(network0.FinishTokenDecimals),
-        network0.NetworkName
-      ),
+      this.settingsService.updateTokenBalance({
+        address: network0.StartTokenAddress,
+        chainId: network0.NetworkName,
+        decimals: parseInt(network0.StartTokenDecimals),
+      }),
+      this.settingsService.updateTokenBalance({
+        address: network0.FinishTokenAddress,
+        chainId: network0.NetworkName,
+        decimals: parseInt(network0.FinishTokenDecimals),
+      }),
     ]);
 
     // Update Network1 token balances
     await Promise.all([
-      this.updateTokenBalance(
-        network1.StartTokenAddress,
-        network1.NetworkName,
-        parseInt(network1.StartTokenDecimals),
-        network1.NetworkName
-      ),
-      this.updateTokenBalance(
-        network1.FinishTokenAddress,
-        network1.NetworkName,
-        parseInt(network1.FinishTokenDecimals),
-        network1.NetworkName
-      ),
+      this.settingsService.updateTokenBalance({
+        address: network1.StartTokenAddress,
+        chainId: network1.NetworkName,
+        decimals: parseInt(network1.StartTokenDecimals),
+      }),
+      this.settingsService.updateTokenBalance({
+        address: network1.FinishTokenAddress,
+        chainId: network1.NetworkName,
+        decimals: parseInt(network1.FinishTokenDecimals),
+      }),
     ]);
   }
 
@@ -123,7 +72,6 @@ export class DDService {
         slippage: networkConfig.SlippagePercent,
       });
     } else {
-      // EVM swap implementation
       return this.dexRouterService.getEVMRoute({
         fromToken: networkConfig.StartTokenAddress,
         toToken: networkConfig.FinishTokenAddress,
@@ -183,11 +131,7 @@ export class DDService {
       if (networkName === "solana") {
         return this.solanaService.executeSwap(route);
       } else {
-        return this.evmService.signAndSendTransaction(
-          1, // chainId - should be determined based on network
-          route,
-          process.env.PRIVATE_KEY
-        );
+        return this.evmService.executeSwap(route);
       }
     };
 
@@ -221,6 +165,7 @@ export class DDService {
       // First phase: Get routes (retried together)
       const routes = await this.requestRoutesWithRetry(params);
       await this.logger.log(`Routes: ${JSON.stringify(routes)}`);
+      
       // Second phase: Execute transactions (retried separately)
       const [network0Tx, network1Tx] = await Promise.all([
         this.executeTransaction(
@@ -256,24 +201,5 @@ export class DDService {
     }
 
     return await this.orderRepository.save(order);
-  }
-
-  async initialize(params: InitializeDto) {
-    const results = {
-      evm: null,
-      solana: null,
-    };
-
-    if (params.evmSettings) {
-      results.evm = await this.evmService.initialize(params.evmSettings);
-    }
-
-    if (params.solanaSettings) {
-      results.solana = await this.solanaService.initialize(
-        params.solanaSettings
-      );
-    }
-
-    return results;
   }
 }

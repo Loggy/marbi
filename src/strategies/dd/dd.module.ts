@@ -7,6 +7,7 @@ import { TokenBalance } from '../../enities/token-balance.entity';
 import { EVMModule } from '../../blockchain/evm/evm.module';
 import { SolanaModule } from '../../blockchain/solana/solana.module';
 import { DexRouterModule } from '../../dex-router/dex-router.module';
+import { SettingsModule } from '../../settings/settings.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { DexRouterModule } from '../../dex-router/dex-router.module';
     EVMModule,
     SolanaModule,
     DexRouterModule,
+    SettingsModule,
   ],
   controllers: [DDController],
   providers: [DDService],

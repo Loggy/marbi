@@ -11,7 +11,7 @@ import { TOKEN_PROGRAM_ID, AccountLayout, MintLayout } from "@solana/spl-token";
 import { LoggerService } from "../../logger/logger.service";
 import { Wallet } from "@project-serum/anchor";
 import bs58 from "bs58";
-import { SolanaSettings } from "src/strategies/dd/dto/initialize-dto";
+import { SolanaSettings } from "src/settings/dto/initialize.dto";
 
 export type TokenBalance = {
   mint: string;
@@ -43,12 +43,12 @@ export class SolanaService {
 
   async getTokenBalance(
     tokenAddress: string,
-    wallet = this.wallet
+    wallet = this.wallet.publicKey.toString()
   ): Promise<number> {
     const mint = new PublicKey(tokenAddress);
 
     const tokenAccounts = await this.client.getTokenAccountsByOwner(
-      wallet.publicKey,
+      new PublicKey(wallet),
       {
         programId: TOKEN_PROGRAM_ID,
       }
@@ -289,13 +289,5 @@ export class SolanaService {
     return {
       decimals: mintInfo.decimals,
     };
-  }
-
-  async initialize(solanaSettings: SolanaSettings) {
-    const walletAddress = solanaSettings.walletAddress;
-    
-    const balances = await this.getWalletBalances(walletAddress);
-
-    return balances;
   }
 }

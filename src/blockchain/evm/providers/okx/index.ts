@@ -1,9 +1,10 @@
 // --------------------- npm package ---------------------
 import * as cryptoJS from "crypto-js";
-import { erc20Abi, Address } from "viem";
+import { Address } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { WalletClientConfig } from "../../evm.service";
 import { config } from "dotenv";
+import erc20Abi from "../../abis/erc20.json";
 config();
 
 const API_BASE_URL = "https://www.okx.com/api/v5/dex/aggregator";
