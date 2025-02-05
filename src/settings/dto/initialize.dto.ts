@@ -7,11 +7,12 @@ import {
   IsArray,
 } from "class-validator";
 import { Type } from "class-transformer";
+import { Address } from "viem";
 
 export class EVMToken {
   @IsString()
   @IsNotEmpty()
-  tokenAddress: string;
+  tokenAddress: Address;
 
   @IsNumber()
   @IsNotEmpty()
@@ -36,7 +37,7 @@ export class EVMChain {
 export class EVMSettings {
   @IsString()
   @IsNotEmpty()
-  walletAddress: string;
+  walletAddress: Address;
 
   @ValidateNested({ each: true })
   @Type(() => EVMChain)

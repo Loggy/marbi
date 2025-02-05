@@ -1,27 +1,71 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, OnModuleInit } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
-import { Order } from "../../enities/order.entity";
+import { Order } from "../../entities/order.entity";
 import { EVMService } from "../../blockchain/evm/evm.service";
 import { SolanaService } from "../../blockchain/solana/solana.service";
 import { DexRouterService } from "../../dex-router/dex-router.service";
 import { LoggerService } from "../../logger/logger.service";
 import { SettingsService } from "../../settings/settings.service";
 import { CreateOrderDto, NetworkConfig } from "./dto/create-order.dto";
+import { Initialize } from "src/entities/initialize.entity";
 
 @Injectable()
-export class DDService {
+export class DDService implements OnModuleInit {
   private readonly MAX_RETRIES = 5;
 
   constructor(
     @InjectRepository(Order)
     private orderRepository: Repository<Order>,
+    @InjectRepository(Initialize)
+    private initializeRepository: Repository<Initialize>,
     private evmService: EVMService,
     private solanaService: SolanaService,
     private dexRouterService: DexRouterService,
     private settingsService: SettingsService,
     private logger: LoggerService
   ) {}
+
+  async onModuleInit() {
+    try {
+      await this.initializeFromLastConfig();
+    } catch (error) {
+      await this.logger.log(
+        `Failed to initialize from last config: ${error.message}`,
+        "error"
+      );
+    }
+  }
+
+  private async initializeFromLastConfig(): Promise<void> {
+    const [lastInitialize] = await this.initializeRepository.find({
+      order: {
+        createdAt: "DESC",
+      },
+      take: 1
+    });
+
+    if (!lastInitialize) {
+      await this.logger.log(
+        "No initialization config found in database",
+        "error"
+      );
+      return;
+    }
+
+    await this.logger.log("Initializing service with last saved configuration");
+
+    try {
+      const result = await this.settingsService.initialize(
+        lastInitialize.params
+      );
+      await this.logger.log(
+        `Service initialized successfully: ${JSON.stringify(result)}`
+      );
+    } catch (error) {
+      throw new Error(`Initialization failed: ${error.message}`);
+    }
+  }
 
   private async updateAllTokenBalances(params: CreateOrderDto): Promise<void> {
     const network0 = params.config.Network0;
@@ -162,36 +206,36 @@ export class DDService {
     );
 
     try {
-      // First phase: Get routes (retried together)
-      const routes = await this.requestRoutesWithRetry(params);
-      await this.logger.log(`Routes: ${JSON.stringify(routes)}`);
-      
+      // // First phase: Get routes (retried together)
+      // const routes = await this.requestRoutesWithRetry(params);
+      // await this.logger.log(`Routes: ${JSON.stringify(routes)}`);
+
       // Second phase: Execute transactions (retried separately)
       const [network0Tx, network1Tx] = await Promise.all([
         this.executeTransaction(
-          routes.network0,
+          params.config.Network0,
           params.config.Network0.NetworkName
         ),
         this.executeTransaction(
-          routes.network1,
+          params.config.Network1,
           params.config.Network1.NetworkName
         ),
       ]);
 
-      // Update token balances after successful execution
-      await this.updateAllTokenBalances(params);
+      // // Update token balances after successful execution
+      // await this.updateAllTokenBalances(params);
 
-      order.status = "COMPLETED";
-      order.result = {
-        network0: {
-          route: routes.network0,
-          transaction: network0Tx,
-        },
-        network1: {
-          route: routes.network1,
-          transaction: network1Tx,
-        },
-      };
+      // order.status = "COMPLETED";
+      // order.result = {
+      //   network0: {
+      //     route: routes.network0,
+      //     transaction: network0Tx,
+      //   },
+      //   network1: {
+      //     route: routes.network1,
+      //     transaction: network1Tx,
+      //   },
+      // };
     } catch (error) {
       order.status = "FAILED";
       order.result = {

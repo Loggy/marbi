@@ -5,14 +5,14 @@ import {
   WalletClient,
   publicActions,
   type PublicActions,
+  erc20Abi,
+  Address,
 } from "viem";
 import { LoggerService } from "../../logger/logger.service";
 import { privateKeyToAccount } from "viem/accounts";
-import { executeOkxSwap } from "./providers/okx";
+import { executeOkxSwap, OKX_SPENDER_ADDRESSES } from "./providers/okx";
 import { base, mainnet, arbitrum, bsc, type Chain } from "viem/chains";
-import { OKX_SPENDER_ADDRESSES } from "./providers/okx";
 import { EVMSettings, EVMTokenInfo } from "../../settings/dto/initialize.dto";
-import erc20Abi from "./abis/erc20.json";
 
 const createViemClient = (chain: Chain, rpcUrl: string) => {
   return createWalletClient({
@@ -26,6 +26,8 @@ const createViemClient = (chain: Chain, rpcUrl: string) => {
 type ChainClients = {
   [K in "1" | "8453" | "42161" | "56"]: WalletClient & PublicActions;
 };
+
+export const EVM_SPENDER_ADDRESSES = OKX_SPENDER_ADDRESSES
 
 const CHAIN_CLIENTS: ChainClients = {
   "1": createViemClient(mainnet, process.env.MAINNET_RPC_URL as string),
@@ -63,13 +65,16 @@ export class EVMService {
       const client = this.getClient(chainId);
       const balance = await client.readContract({
         address: tokenAddress as `0x${string}`,
-      abi: erc20Abi,
-      functionName: "balanceOf",
-      args: [address as `0x${string}`],
-    });
+        abi: erc20Abi,
+        functionName: "balanceOf",
+        args: [address as `0x${string}`],
+      });
       return balance as bigint;
     } catch (error) {
-      await this.logger.log(`Failed to get token balance: ${error.message}`, "error");
+      await this.logger.log(
+        `Failed to get token balance: ${error.message}`,
+        "error"
+      );
       return BigInt(0);
     }
   }
@@ -104,12 +109,15 @@ export class EVMService {
       const client = this.getClient(chainId);
       const decimals = await client.readContract({
         address: tokenAddress as `0x${string}`,
-      abi: erc20Abi,
-      functionName: "decimals",
-    });
-    return decimals as number;
+        abi: erc20Abi,
+        functionName: "decimals",
+      });
+      return decimals as number;
     } catch (error) {
-      await this.logger.log(`Failed to get token decimals: ${error.message}`, "error");
+      await this.logger.log(
+        `Failed to get token decimals: ${error.message}`,
+        "error"
+      );
       return 0;
     }
   }
@@ -121,53 +129,73 @@ export class EVMService {
     });
   }
 
-  async getTokensInfo(walletAddress: string, chainId: number, tokens: string[]): Promise<EVMTokenInfo[]> {
+  async getTokensInfo(
+    walletAddress: string,
+    chainId: number,
+    tokens: string[]
+  ): Promise<EVMTokenInfo[]> {
     try {
       const client = this.getClient(chainId);
       const spenderAddress =
         OKX_SPENDER_ADDRESSES[
           chainId.toString() as keyof typeof OKX_SPENDER_ADDRESSES
         ];
-    const multicallCalls = tokens.flatMap((token) => [
-      {
-        address: token as `0x${string}`,
-        abi: erc20Abi,
-        functionName: "balanceOf",
-        args: [walletAddress as `0x${string}`],
-      },
-      {
-        address: token as `0x${string}`,
-        abi: erc20Abi,
-        functionName: "allowance",
-        args: [walletAddress as `0x${string}`, spenderAddress],
-      },
-    ]);
+      const multicallCalls = tokens.flatMap((token) => [
+        {
+          address: token as `0x${string}`,
+          abi: erc20Abi,
+          functionName: "balanceOf",
+          args: [walletAddress as `0x${string}`],
+        },
+        {
+          address: token as `0x${string}`,
+          abi: erc20Abi,
+          functionName: "allowance",
+          args: [walletAddress as `0x${string}`, spenderAddress],
+        },
+      ]);
 
-    // Execute multicall
-    const results = await client.multicall({
-        // @ts-ignore
+      // Execute multicall
+      // @ts-ignore
+      const results = await client.multicall({
         contracts: multicallCalls,
       });
 
       const tokenInfos = [];
 
-      for (let i = 0; i < tokens.length; i+=2) {
-        tokenInfos.push({
-          tokenAddress: tokens[i],
+      for (let i = 0; i < results.length; i += 2) {
+        const info = {
+          tokenAddress: tokens[i / 2],
           balance: results[i].status === "success" ? results[i].result : 0n,
-          allowance: results[i + 1].status === "success" ? results[i + 1].result : 0n,
-        });
+          allowance:
+            results[i + 1].status === "success" ? results[i + 1].result : 0n,
+        };
+        tokenInfos.push(info);
       }
 
       return tokenInfos;
     } catch (error) {
-      await this.logger.log(`Failed to get tokens info: ${error.message}`, "error");
+      await this.logger.log(
+        `Failed to get tokens info: ${error.message}`,
+        "error"
+      );
       return [];
     }
-  };
+  }
 
-  async setAllowance(chainId: number, tokenAddress: string, spenderAddress: string, allowance: bigint): Promise<string | null> {
+  async setAllowance(
+    chainId: number,
+    tokenAddress: Address,
+    allowance: bigint
+  ): Promise<string | null> {
     try {
+      const spenderAddress =
+        EVM_SPENDER_ADDRESSES[
+          chainId.toString() as keyof typeof EVM_SPENDER_ADDRESSES
+        ];
+      if (!spenderAddress) {
+        throw new Error(`Spender address not found for chain ${chainId}`);
+      }
 
       const client = this.getClient(chainId);
       return await client.writeContract({
@@ -179,8 +207,11 @@ export class EVMService {
         account: client.account,
       });
     } catch (error) {
-      await this.logger.log(`Failed to set allowance: ${error.message}`, "error");
+      await this.logger.log(
+        `Failed to set allowance: ${error.message}`,
+        "error"
+      );
       return null;
     }
-  };
+  }
 }
