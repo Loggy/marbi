@@ -19,6 +19,15 @@ export type TokenBalance = {
   decimals: number;
   uiAmount: number;
 };
+
+export type SolanaSwapParams = {
+  fromToken: string;
+  toToken: string;
+  amount: string;
+  slippage?: string;
+  jitoTipLamports?: number;
+};
+
 @Injectable()
 export class SolanaService {
   private client: Connection;
@@ -180,20 +189,16 @@ export class SolanaService {
     fromToken,
     toToken,
     amount,
-    slippage = "50",
+    slippage = "0.5",
     jitoTipLamports = 0,
-  }: {
-    fromToken: string;
-    toToken: string;
-    amount: string;
-    slippage?: string;
-    jitoTipLamports?: number;
-  }) {
+  }: SolanaSwapParams) {
     const swapResult = {
       // amountBaught: 0n,
       txid: "",
       solscanLink: "",
     };
+
+    const slippageBps = Number(slippage) * 100;
 
     const withJito = jitoTipLamports > 0;
 
@@ -202,7 +207,7 @@ export class SolanaService {
       fromToken: ${fromToken}
       toToken: ${toToken}
       amount: ${amount}
-      slippage: ${slippage}
+      slippage: ${slippageBps}
       withJito: ${withJito}
       jitoTipLamports: ${jitoTipLamports}\n`
     );
@@ -212,7 +217,7 @@ export class SolanaService {
     // Swapping SOL to USDC with input 0.1 SOL and 0.5% slippage
     const quoteResponse = await (
       await fetch(
-        `https://quote-api.jup.ag/v6/quote?inputMint=${fromToken}&outputMint=${toToken}&amount=${amount}&slippageBps=${slippage}`
+        `https://quote-api.jup.ag/v6/quote?inputMint=${fromToken}&outputMint=${toToken}&amount=${amount}&slippageBps=${slippageBps}`
       )
     ).json();
 

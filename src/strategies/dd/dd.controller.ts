@@ -7,6 +7,9 @@ import {
 } from "@nestjs/common";
 import { DDService } from "./dd.service";
 import { CreateOrderDto } from "./dto/create-order.dto";
+import { getChainIdByName } from "src/blockchain/evm/evm.service";
+import { SolanaSwapParams } from "src/blockchain/solana/solana.service";
+import { EVMSwapParams } from "src/blockchain/evm/providers/okx";
 
 @Controller("dd")
 export class DDController {
@@ -15,21 +18,64 @@ export class DDController {
   @Post()
   @UsePipes(new ValidationPipe({ transform: true }))
   async createOrder(@Body() params: CreateOrderDto) {
-    const to = params.spread_entry.to_network_name;
+    const fromNetworkName = params.spread_entry.from_network_name;
+    const toNetworkName = params.spread_entry.to_network_name;
 
-    const toNetwork =
-      params.config.Network0.NetworkName === to
+    const fromNetwork =
+      params.config.Network0.NetworkName === fromNetworkName
         ? params.config.Network0
         : params.config.Network1;
 
-    const toStartTokenAddress = toNetwork.StartTokenAddress;
-    const toStartTokenDecimals = toNetwork.StartTokenDecimals
-    
-    toNetwork.StartTokenAddress = toNetwork.FinishTokenAddress;
-    toNetwork.StartTokenDecimals = toNetwork.FinishTokenDecimals;
+    const toNetwork =
+      params.config.Network0.NetworkName === toNetworkName
+        ? params.config.Network0
+        : params.config.Network1;
 
-    toNetwork.FinishTokenAddress = toStartTokenAddress;
-    toNetwork.FinishTokenDecimals = toStartTokenDecimals;
+    if (fromNetwork.NetworkName === "solana") {
+      (fromNetwork.swapParams as SolanaSwapParams) = {
+        fromToken: fromNetwork.StartTokenAddress,
+        toToken: fromNetwork.FinishTokenAddress,
+        amount: String(
+          params.config.Amounts_In[0].amount *
+            10 ** Number(fromNetwork.StartTokenDecimals)
+        ),
+        slippage: fromNetwork.SlippagePercent,
+      };
+    } else {
+      (fromNetwork.swapParams as EVMSwapParams) = {
+        fromToken: fromNetwork.StartTokenAddress as `0x${string}`,
+        toToken: fromNetwork.FinishTokenAddress as `0x${string}`,
+        amount: String(
+          params.config.Amounts_In[0].amount *
+            10 ** Number(fromNetwork.StartTokenDecimals)
+        ),
+        slippage: fromNetwork.SlippagePercent,
+        chainId: getChainIdByName(fromNetwork.NetworkName),
+      };
+    }
+
+    if (toNetwork.NetworkName === "solana") {
+      (toNetwork.swapParams as SolanaSwapParams) = {
+        fromToken: toNetwork.FinishTokenAddress,
+        toToken: toNetwork.StartTokenAddress,
+        amount: String(
+          params.config.Amounts_In[1].amount *
+            10 ** Number(toNetwork.FinishTokenDecimals)
+        ),
+        slippage: toNetwork.SlippagePercent,
+      };
+    } else {
+      (toNetwork.swapParams as EVMSwapParams) = {
+        fromToken: toNetwork.FinishTokenAddress as `0x${string}`,
+        toToken: toNetwork.StartTokenAddress as `0x${string}`,
+        amount: String(
+          params.config.Amounts_In[1].amount *
+            10 ** Number(toNetwork.FinishTokenDecimals)
+        ),
+        slippage: toNetwork.SlippagePercent,
+        chainId: getChainIdByName(toNetwork.NetworkName),
+      };
+    }
 
     return await this.ddService.createOrder(params);
   }

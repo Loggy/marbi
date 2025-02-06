@@ -118,7 +118,6 @@ async function sendApproveTx({
   fromTokenAddress,
   spenderAddress,
 }: SendApproveTxParams) {
- 
   const { data } = await approveTransaction({
     chainId: chainId,
     tokenContractAddress: fromTokenAddress,
@@ -128,7 +127,7 @@ async function sendApproveTx({
   const hash = await client.writeContract({
     address: fromTokenAddress,
     abi: erc20Abi,
-    functionName: 'approve',
+    functionName: "approve",
     args: [spenderAddress, BigInt(fromAmount)],
     chain: client.chain,
     account: client.account,
@@ -219,23 +218,22 @@ async function sendAndSwap({ swapData, client }: SendAndSwapParams) {
   }
 }
 
-type ExecuteSwapParams = {
+export type EVMSwapParams = {
   chainId: string;
-  fromTokenAddress: Address;
-  toTokenAddress: Address;
-  fromAmount: string;
+  fromToken: Address;
+  toToken: Address;
+  amount: string;
   slippage: string;
-  client: WalletClientConfig;
 };
 
 export async function executeOkxSwap({
   chainId,
-  fromTokenAddress,
-  toTokenAddress,
-  fromAmount,
+  fromToken,
+  toToken,
+  amount,
   slippage = DEFAULT_SLIPPAGE,
   client,
-}: ExecuteSwapParams) {
+}: EVMSwapParams & { client: WalletClientConfig }) {
   const spenderAddress =
     OKX_SPENDER_ADDRESSES[chainId as keyof typeof OKX_SPENDER_ADDRESSES];
 
@@ -243,24 +241,24 @@ export async function executeOkxSwap({
     ownerAddress: USER_ADDRESS,
     spenderAddress,
     client,
-    tokenAddress: fromTokenAddress,
+    tokenAddress: fromToken,
   });
-  if (allowanceAmount < parseFloat(fromAmount)) {
+  if (allowanceAmount < parseFloat(amount)) {
     await sendApproveTx({
       ownerAddress: USER_ADDRESS,
-      fromAmount,
+      fromAmount: amount,
       client,
       chainId: chainId,
-      fromTokenAddress,
+      fromTokenAddress: fromToken,
       spenderAddress,
     });
   }
 
   const swapData = await getSwapData({
     chainId,
-    fromTokenAddress,
-    toTokenAddress,
-    amount: fromAmount,
+    fromTokenAddress: fromToken,
+    toTokenAddress: toToken,
+    amount,
     slippage,
     userWalletAddress: USER_ADDRESS,
   });

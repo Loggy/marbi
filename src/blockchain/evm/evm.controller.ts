@@ -5,17 +5,17 @@ import { EVMService } from "./evm.service";
 export class EVMController {
   constructor(private readonly evmService: EVMService) {}
 
-  @Post("okx-swap")
-  async okxSwap(
-    @Body()
-    params: {
-      chainId: string;
-      fromToken: string;
-      toToken: string;
-      amount: string;
-      slippage?: string;
-    }
-  ) {
-    return await this.evmService.executeSwap(params);
-  }
+  // @Post("okx-swap")
+  // async okxSwap(
+  //   @Body()
+  //   params: {
+  //     chainId: string;
+  //     fromToken: string;
+  //     toToken: string;
+  //     amount: string;
+  //     slippage?: string;
+  //   }
+  // ) {
+  //   return await this.evmService.executeSwap(params);
+  // }
 }

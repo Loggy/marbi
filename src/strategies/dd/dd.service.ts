@@ -3,13 +3,16 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { Order } from "../../entities/order.entity";
 import { EVMService } from "../../blockchain/evm/evm.service";
-import { SolanaService } from "../../blockchain/solana/solana.service";
+import {
+  SolanaService,
+  SolanaSwapParams,
+} from "../../blockchain/solana/solana.service";
 import { DexRouterService } from "../../dex-router/dex-router.service";
 import { LoggerService } from "../../logger/logger.service";
 import { SettingsService } from "../../settings/settings.service";
 import { CreateOrderDto, NetworkConfig } from "./dto/create-order.dto";
 import { Initialize } from "src/entities/initialize.entity";
-
+import { EVMSwapParams } from "src/blockchain/evm/providers/okx";
 @Injectable()
 export class DDService implements OnModuleInit {
   private readonly MAX_RETRIES = 5;
@@ -42,7 +45,7 @@ export class DDService implements OnModuleInit {
       order: {
         createdAt: "DESC",
       },
-      take: 1
+      take: 1,
     });
 
     if (!lastInitialize) {
@@ -167,15 +170,15 @@ export class DDService implements OnModuleInit {
   }
 
   private async executeTransaction(
-    route: any,
+    params: SolanaSwapParams | EVMSwapParams,
     networkName: string,
     retries = this.MAX_RETRIES
   ): Promise<any> {
     const execute = async () => {
       if (networkName === "solana") {
-        return this.solanaService.executeSwap(route);
+        return this.solanaService.executeSwap(params as SolanaSwapParams);
       } else {
-        return this.evmService.executeSwap(route);
+        return this.evmService.executeSwap(params as EVMSwapParams);
       }
     };
 
@@ -187,7 +190,7 @@ export class DDService implements OnModuleInit {
           `Retry attempt ${this.MAX_RETRIES - retries + 1} for ${networkName}: ${error.message}`,
           "warn"
         );
-        return this.executeTransaction(route, networkName, retries - 1);
+        return this.executeTransaction(params, networkName, retries - 1);
       }
       throw new Error(
         `Failed after ${this.MAX_RETRIES} retries for ${networkName}: ${error.message}`
@@ -213,11 +216,11 @@ export class DDService implements OnModuleInit {
       // Second phase: Execute transactions (retried separately)
       const [network0Tx, network1Tx] = await Promise.all([
         this.executeTransaction(
-          params.config.Network0,
+          params.config.Network0.swapParams,
           params.config.Network0.NetworkName
         ),
         this.executeTransaction(
-          params.config.Network1,
+          params.config.Network1.swapParams,
           params.config.Network1.NetworkName
         ),
       ]);

@@ -1,5 +1,15 @@
-import { IsString, IsNumber, IsOptional, IsArray, ValidateNested, IsBoolean, IsNotEmpty } from 'class-validator';
-import { Type } from 'class-transformer';
+import {
+  IsString,
+  IsNumber,
+  IsOptional,
+  IsArray,
+  ValidateNested,
+  IsBoolean,
+  IsNotEmpty,
+} from "class-validator";
+import { Type } from "class-transformer";
+import { EVMSwapParams } from "src/blockchain/evm/providers/okx";
+import { SolanaSwapParams } from "src/blockchain/solana/solana.service";
 
 export class AmountIn {
   @IsNumber()
@@ -56,6 +66,8 @@ export class NetworkConfig {
   @IsNumber()
   @IsOptional()
   native_token_decimals?: number;
+
+  swapParams: SolanaSwapParams | EVMSwapParams;
 }
 
 export class SpreadEntry {
@@ -226,4 +238,4 @@ export class CreateOrderDto {
   @Type(() => SpreadEntry)
   @IsNotEmpty()
   spread_entry: SpreadEntry;
-} 
+}

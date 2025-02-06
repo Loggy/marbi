@@ -10,7 +10,11 @@ import {
 } from "viem";
 import { LoggerService } from "../../logger/logger.service";
 import { privateKeyToAccount } from "viem/accounts";
-import { executeOkxSwap, OKX_SPENDER_ADDRESSES } from "./providers/okx";
+import {
+  executeOkxSwap,
+  EVMSwapParams,
+  OKX_SPENDER_ADDRESSES,
+} from "./providers/okx";
 import { base, mainnet, arbitrum, bsc, type Chain } from "viem/chains";
 import { EVMSettings, EVMTokenInfo } from "../../settings/dto/initialize.dto";
 
@@ -27,7 +31,7 @@ type ChainClients = {
   [K in "1" | "8453" | "42161" | "56"]: WalletClient & PublicActions;
 };
 
-export const EVM_SPENDER_ADDRESSES = OKX_SPENDER_ADDRESSES
+export const EVM_SPENDER_ADDRESSES = OKX_SPENDER_ADDRESSES;
 
 const CHAIN_CLIENTS: ChainClients = {
   "1": createViemClient(mainnet, process.env.MAINNET_RPC_URL as string),
@@ -35,6 +39,21 @@ const CHAIN_CLIENTS: ChainClients = {
   "42161": createViemClient(arbitrum, process.env.ARBITRUM_RPC_URL as string),
   "56": createViemClient(bsc, process.env.BSC_RPC_URL as string),
 };
+
+const CHAIN_NAME_TO_ID = {
+  mainnet: "1",
+  base: "8453",
+  arbitrum: "42161",
+  bsc: "56",
+};
+
+export function getChainIdByName(chainName: string) {
+  const chainId = CHAIN_NAME_TO_ID[chainName as keyof typeof CHAIN_NAME_TO_ID];
+  if (!chainId) {
+    throw new Error(`Chain name ${chainName} is not supported`);
+  }
+  return chainId;
+}
 
 // Update the WalletClientConfig type to use our new ChainClients type
 export type WalletClientConfig = ChainClients[keyof ChainClients];
@@ -44,11 +63,14 @@ export class EVMService {
   constructor(private readonly logger: LoggerService) {}
 
   private getClient(chainId: string | number): WalletClientConfig {
-    const chainIdStr = chainId.toString();
-    if (chainIdStr in CHAIN_CLIENTS) {
-      return CHAIN_CLIENTS[chainIdStr as keyof ChainClients];
+    try {
+      const chainIdStr = chainId.toString();
+      if (chainIdStr in CHAIN_CLIENTS) {
+        return CHAIN_CLIENTS[chainIdStr as keyof ChainClients];
+      }
+    } catch (error) {
+      throw new Error(`Chain ID ${chainId} is not supported`);
     }
-    throw new Error(`Chain ID ${chainId} is not supported`);
   }
 
   async getNativeBalance(address: string, chainId: number): Promise<bigint> {
@@ -122,7 +144,9 @@ export class EVMService {
     }
   }
 
-  async executeSwap(params: any): Promise<any> {
+  async executeSwap(params: EVMSwapParams): Promise<any> {
+    this.logger.log(`Executing EVM swap: ${JSON.stringify(params)}`);
+
     return await executeOkxSwap({
       ...params,
       client: this.getClient(params.chainId),
