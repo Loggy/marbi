@@ -26,23 +26,27 @@ export type SolanaSwapParams = {
   amount: string;
   slippage?: string;
   jitoTipLamports?: number;
+  privateKey?: string;
 };
 
 @Injectable()
 export class SolanaService {
   private client: Connection;
   private jitoClient: Connection;
-  private signer: Keypair;
-  private wallet: Wallet;
 
   constructor(private readonly logger: LoggerService) {
     this.client = new Connection(process.env.SOLANA_RPC_URL);
     this.jitoClient = new Connection(process.env.JITO_RPC_URL);
-    // Initialize signer with private key
-    const privateKeyBytes = bs58.decode(process.env.SOLANA_PRIVATE_KEY);
-    this.signer = Keypair.fromSecretKey(privateKeyBytes);
-    this.wallet = new Wallet(this.signer);
-    this.logger = logger;
+  }
+
+  private getWallet(privateKey?: string): Wallet {
+    if (privateKey) {
+      const privateKeyBytes = bs58.decode(privateKey);
+      return new Wallet(Keypair.fromSecretKey(privateKeyBytes));
+    }
+    // Fall back to default wallet
+    const defaultPrivateKeyBytes = bs58.decode(process.env.SOLANA_PRIVATE_KEY);
+    return new Wallet(Keypair.fromSecretKey(defaultPrivateKeyBytes));
   }
 
   async getNativeBalance(address: string): Promise<number> {
@@ -52,12 +56,14 @@ export class SolanaService {
 
   async getTokenBalance(
     tokenAddress: string,
-    wallet = this.wallet.publicKey.toString()
+    walletAddress: string,
+    privateKey?: string
   ): Promise<number> {
+    const wallet = this.getWallet(privateKey);
     const mint = new PublicKey(tokenAddress);
 
     const tokenAccounts = await this.client.getTokenAccountsByOwner(
-      new PublicKey(wallet),
+      new PublicKey(walletAddress),
       {
         programId: TOKEN_PROGRAM_ID,
       }
@@ -133,7 +139,7 @@ export class SolanaService {
 
   private async signAndSendTransaction(transaction: VersionedTransaction) {
     // Sign the transaction
-    transaction.sign([this.wallet.payer]);
+    transaction.sign([this.getWallet().payer]);
 
     // Get the latest block hash
     const latestBlockHash = await this.client.getLatestBlockhash();
@@ -160,7 +166,7 @@ export class SolanaService {
 
   private async signAndSendTransactionJito(transaction: VersionedTransaction) {
     // Sign the transaction
-    transaction.sign([this.wallet.payer]);
+    transaction.sign([this.getWallet().payer]);
 
     // Get the latest block hash from Jito client
     const latestBlockHash = await this.client.getLatestBlockhash();
@@ -185,31 +191,26 @@ export class SolanaService {
     return txid;
   }
 
-  async executeSwap({
-    fromToken,
-    toToken,
-    amount,
-    slippage = "0.5",
-    jitoTipLamports = 0,
-  }: SolanaSwapParams) {
+  async executeSwap(params: SolanaSwapParams) {
+    const wallet = this.getWallet(params.privateKey);
     const swapResult = {
       // amountBaught: 0n,
       txid: "",
       solscanLink: "",
     };
 
-    const slippageBps = Number(slippage) * 100;
+    const slippageBps = Number(params.slippage) * 100;
 
-    const withJito = jitoTipLamports > 0;
+    const withJito = params.jitoTipLamports > 0;
 
     this.logger.log(
       `Starting JUP swap
-      fromToken: ${fromToken}
-      toToken: ${toToken}
-      amount: ${amount}
+      fromToken: ${params.fromToken}
+      toToken: ${params.toToken}
+      amount: ${params.amount}
       slippage: ${slippageBps}
       withJito: ${withJito}
-      jitoTipLamports: ${jitoTipLamports}\n`
+      jitoTipLamports: ${params.jitoTipLamports}\n`
     );
 
     //todo get balance from DB
@@ -217,7 +218,7 @@ export class SolanaService {
     // Swapping SOL to USDC with input 0.1 SOL and 0.5% slippage
     const quoteResponse = await (
       await fetch(
-        `https://quote-api.jup.ag/v6/quote?inputMint=${fromToken}&outputMint=${toToken}&amount=${amount}&slippageBps=${slippageBps}`
+        `https://quote-api.jup.ag/v6/quote?inputMint=${params.fromToken}&outputMint=${params.toToken}&amount=${params.amount}&slippageBps=${slippageBps}`
       )
     ).json();
 
@@ -232,7 +233,7 @@ export class SolanaService {
 
     if (withJito) {
       prioritizationFeeLamports = {
-        jitoTipLamports,
+        jitoTipLamports: params.jitoTipLamports,
       };
     }
 
@@ -246,7 +247,7 @@ export class SolanaService {
           // quoteResponse from /quote api
           quoteResponse,
           // user public key to be used for the swap
-          userPublicKey: this.wallet.publicKey.toString(),
+          userPublicKey: wallet.publicKey.toString(),
           // auto wrap and unwrap SOL. default is true
           prioritizationFeeLamports,
           wrapAndUnwrapSol: true,

@@ -19,9 +19,10 @@ import { base, mainnet, arbitrum, bsc, type Chain } from "viem/chains";
 import { EVMSettings, EVMTokenInfo } from "../../settings/dto/initialize.dto";
 
 const createViemClient = (chain: Chain, rpcUrl: string) => {
+  const transport = http(rpcUrl);
   return createWalletClient({
     chain: chain,
-    transport: http(rpcUrl),
+    transport,
     account: privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`),
   }).extend(publicActions);
 };
@@ -62,10 +63,19 @@ export type WalletClientConfig = ChainClients[keyof ChainClients];
 export class EVMService {
   constructor(private readonly logger: LoggerService) {}
 
-  private getClient(chainId: string | number): WalletClientConfig {
+  private getClient(chainId: string | number, privateKey?: string): WalletClientConfig {
     try {
       const chainIdStr = chainId.toString();
       if (chainIdStr in CHAIN_CLIENTS) {
+        if (privateKey) {
+          // Create a new client with the provided private key
+          const baseClient = CHAIN_CLIENTS[chainIdStr as keyof ChainClients];
+          return createWalletClient({
+            chain: baseClient.chain,
+            transport: http(baseClient.transport.url), // Create new transport with the same URL
+            account: privateKeyToAccount(privateKey as `0x${string}`),
+          }).extend(publicActions);
+        }
         return CHAIN_CLIENTS[chainIdStr as keyof ChainClients];
       }
     } catch (error) {
@@ -81,10 +91,11 @@ export class EVMService {
   async getTokenBalance(
     tokenAddress: string,
     address: string,
-    chainId: number
+    chainId: number,
+    privateKey?: string
   ): Promise<bigint> {
     try {
-      const client = this.getClient(chainId);
+      const client = this.getClient(chainId, privateKey);
       const balance = await client.readContract({
         address: tokenAddress as `0x${string}`,
         abi: erc20Abi,
@@ -144,12 +155,12 @@ export class EVMService {
     }
   }
 
-  async executeSwap(params: EVMSwapParams): Promise<any> {
+  async executeSwap(params: EVMSwapParams & { privateKey?: string }): Promise<any> {
     this.logger.log(`Executing EVM swap: ${JSON.stringify(params)}`);
 
     return await executeOkxSwap({
       ...params,
-      client: this.getClient(params.chainId),
+      client: this.getClient(params.chainId, params.privateKey),
     });
   }
 

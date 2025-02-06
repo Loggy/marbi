@@ -1,0 +1,559 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/solana/check-balances": {
+      "post": {
+        "operationId": "SolanaController_checkAllBalances",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Solana"
+        ]
+      }
+    },
+    "/solana/jup-swap": {
+      "post": {
+        "operationId": "SolanaController_jupSwap",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Solana"
+        ]
+      }
+    },
+    "/dd": {
+      "post": {
+        "operationId": "DDController_createOrder",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOrderDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Order created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "params": {
+                      "type": "object"
+                    },
+                    "result": {
+                      "type": "object"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Create a new DD order",
+        "tags": [
+          "dd"
+        ]
+      }
+    },
+    "/settings/balance": {
+      "get": {
+        "operationId": "SettingsController_getBalance",
+        "parameters": [
+          {
+            "name": "chainId",
+            "required": true,
+            "in": "query",
+            "description": "Chain ID of the network",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tokenAddress",
+            "required": true,
+            "in": "query",
+            "description": "Address of the token",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns the token balance information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "balance": {
+                      "type": "string"
+                    },
+                    "decimals": {
+                      "type": "number"
+                    },
+                    "currentAllowance": {
+                      "type": "string"
+                    },
+                    "minAllowance": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get token balance",
+        "tags": [
+          "settings"
+        ]
+      }
+    },
+    "/settings/initialize": {
+      "post": {
+        "operationId": "SettingsController_initialize",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InitializeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Settings initialized successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "evm": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "solana": {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Initialize settings",
+        "tags": [
+          "settings"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Arbi Engine API",
+    "description": "API documentation for Arbi Engine operations",
+    "version": "1.0",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "settings",
+      "description": "Settings management endpoint: balances, initialize"
+    },
+    {
+      "name": "dd",
+      "description": "Dex-Dex strategy endpoints"
+    }
+  ],
+  "servers": [],
+  "components": {
+    "schemas": {
+      "AmountIn": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "number",
+            "description": "Amount to be traded"
+          },
+          "AlertLevelUSD": {
+            "type": "number",
+            "description": "Alert level in USD"
+          }
+        },
+        "required": [
+          "amount"
+        ]
+      },
+      "Wallet": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "description": "Wallet address"
+          },
+          "key": {
+            "type": "string",
+            "description": "Wallet key"
+          }
+        },
+        "required": [
+          "address",
+          "key"
+        ]
+      },
+      "NetworkConfig": {
+        "type": "object",
+        "properties": {
+          "NetworkName": {
+            "type": "string",
+            "description": "Name of the network (e.g., \"solana\", \"ethereum\")"
+          },
+          "StartTokenAddress": {
+            "type": "string",
+            "description": "Address of the starting token"
+          },
+          "StartTokenTiker": {
+            "type": "string",
+            "description": "Ticker of the starting token"
+          },
+          "StartTokenDecimals": {
+            "type": "string",
+            "description": "Decimals for the starting token"
+          },
+          "FinishTokenAddress": {
+            "type": "string",
+            "description": "Address of the finishing token"
+          },
+          "FinishTokenDecimals": {
+            "type": "string",
+            "description": "Decimals for the finishing token"
+          },
+          "TokenPoolsAddresses": {
+            "description": "List of token pool addresses",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "NetworkMethod": {
+            "type": "string",
+            "description": "Network method"
+          },
+          "DexesList": {
+            "description": "List of dexes",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "SlippagePercent": {
+            "type": "string",
+            "description": "Slippage percent"
+          },
+          "native_token_ticker": {
+            "type": "string",
+            "description": "Native token ticker"
+          },
+          "native_token_decimals": {
+            "type": "number",
+            "description": "Native token decimals"
+          },
+          "swapParams": {
+            "type": "object",
+            "description": "Swap parameters for the network"
+          },
+          "wallet": {
+            "description": "Wallet information for the network",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Wallet"
+              }
+            ]
+          }
+        },
+        "required": [
+          "NetworkName",
+          "StartTokenAddress",
+          "FinishTokenAddress",
+          "SlippagePercent",
+          "swapParams",
+          "wallet"
+        ]
+      },
+      "Config": {
+        "type": "object",
+        "properties": {
+          "Enabled": {
+            "type": "string",
+            "description": "Enabled flag"
+          },
+          "Ticker": {
+            "type": "string",
+            "description": "Ticker symbol"
+          },
+          "Amounts_In": {
+            "description": "Input amounts array",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AmountIn"
+            }
+          },
+          "Directions": {
+            "type": "string",
+            "description": "Trading directions"
+          },
+          "CustomNotificationHTML": {
+            "type": "string",
+            "description": "Custom notification HTML"
+          },
+          "Network0": {
+            "description": "Configuration for Network0",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NetworkConfig"
+              }
+            ]
+          },
+          "Network1": {
+            "description": "Configuration for Network1",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NetworkConfig"
+              }
+            ]
+          },
+          "ws_updates": {
+            "type": "number",
+            "description": "Websocket update interval in seconds"
+          },
+          "spread_active": {
+            "type": "boolean",
+            "description": "Spread active flag"
+          },
+          "TGChannel": {
+            "type": "string",
+            "description": "Telegram channel"
+          },
+          "TGTopic": {
+            "type": "string",
+            "description": "Telegram topic"
+          },
+          "DexesList0": {
+            "description": "Dexes list for Network0",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "DexesList1": {
+            "description": "Dexes list for Network1",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "SlippagePercent0": {
+            "type": "string",
+            "description": "Slippage percent for Network0"
+          },
+          "SlippagePercent1": {
+            "type": "string",
+            "description": "Slippage percent for Network1"
+          },
+          "SpreadLifeTime": {
+            "type": "string",
+            "description": "Spread lifetime"
+          }
+        },
+        "required": [
+          "Enabled",
+          "Amounts_In",
+          "Directions",
+          "Network0",
+          "Network1"
+        ]
+      },
+      "SpreadEntry": {
+        "type": "object",
+        "properties": {
+          "Ticker": {
+            "type": "string",
+            "description": "Ticker symbol for the spread, if any"
+          },
+          "amount": {
+            "type": "number",
+            "description": "Amount used in the spread"
+          },
+          "AlertLevelUSD": {
+            "type": "number",
+            "description": "Alert level in USD for the spread"
+          },
+          "from_network": {
+            "type": "string",
+            "description": "Source network identifier"
+          },
+          "to_network": {
+            "type": "string",
+            "description": "Destination network identifier"
+          },
+          "from_network_name": {
+            "type": "string",
+            "description": "Source network name"
+          },
+          "to_network_name": {
+            "type": "string",
+            "description": "Destination network name"
+          },
+          "spread_active": {
+            "type": "boolean",
+            "description": "Flag indicating if spread is active"
+          },
+          "SpreadLifeTime": {
+            "type": "string",
+            "description": "Lifetime of the spread in string format"
+          },
+          "swap_fee_buy": {
+            "type": "number",
+            "description": "Swap fee when buying"
+          },
+          "swap_fee_sell": {
+            "type": "number",
+            "description": "Swap fee when selling"
+          },
+          "last_alert_ts": {
+            "type": "number",
+            "description": "Timestamp of the last alert"
+          },
+          "appear_spread_timestamp": {
+            "type": "number",
+            "description": "Timestamp when spread appeared"
+          },
+          "last_check_spread_timestamp": {
+            "type": "number",
+            "description": "Timestamp when spread was last checked"
+          },
+          "bye_price_changed_percentage": {
+            "type": "number",
+            "description": "Percentage change in buy price"
+          },
+          "sell_price_changed_percentage": {
+            "type": "number",
+            "description": "Percentage change in sell price"
+          },
+          "CustomNotificationHTML": {
+            "type": "string",
+            "description": "Custom HTML for notifications"
+          },
+          "from_network_amount_in_tokens": {
+            "type": "number",
+            "description": "Input token amount on the source network"
+          },
+          "to_network_amount_in_tokens": {
+            "type": "number",
+            "description": "Input token amount on the destination network"
+          },
+          "last_spread_in_usd": {
+            "type": "number",
+            "description": "Last spread value in USD"
+          },
+          "old_buy_price": {
+            "type": "number",
+            "description": "Old buy price"
+          },
+          "new_buy_price": {
+            "type": "number",
+            "description": "New buy price"
+          },
+          "old_sell_price": {
+            "type": "number",
+            "description": "Old sell price"
+          },
+          "new_sell_price": {
+            "type": "number",
+            "description": "New sell price"
+          }
+        },
+        "required": [
+          "amount",
+          "from_network",
+          "to_network",
+          "from_network_name",
+          "to_network_name",
+          "from_network_amount_in_tokens",
+          "to_network_amount_in_tokens",
+          "old_buy_price",
+          "new_buy_price",
+          "old_sell_price",
+          "new_sell_price"
+        ]
+      },
+      "CreateOrderDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Order type"
+          },
+          "config": {
+            "description": "Order configuration",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Config"
+              }
+            ]
+          },
+          "spread_entry": {
+            "description": "Spread entry details",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SpreadEntry"
+              }
+            ]
+          }
+        },
+        "required": [
+          "config",
+          "spread_entry"
+        ]
+      },
+      "InitializeDto": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  }
+}

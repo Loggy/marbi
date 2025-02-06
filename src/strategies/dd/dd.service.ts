@@ -172,13 +172,20 @@ export class DDService implements OnModuleInit {
   private async executeTransaction(
     params: SolanaSwapParams | EVMSwapParams,
     networkName: string,
+    wallet: { address: string; key: string },
     retries = this.MAX_RETRIES
   ): Promise<any> {
     const execute = async () => {
       if (networkName === "solana") {
-        return this.solanaService.executeSwap(params as SolanaSwapParams);
+        return this.solanaService.executeSwap({
+          ...(params as SolanaSwapParams),
+          privateKey: wallet.key,
+        });
       } else {
-        return this.evmService.executeSwap(params as EVMSwapParams);
+        return this.evmService.executeSwap({
+          ...(params as EVMSwapParams),
+          privateKey: wallet.key,
+        });
       }
     };
 
@@ -190,7 +197,7 @@ export class DDService implements OnModuleInit {
           `Retry attempt ${this.MAX_RETRIES - retries + 1} for ${networkName}: ${error.message}`,
           "warn"
         );
-        return this.executeTransaction(params, networkName, retries - 1);
+        return this.executeTransaction(params, networkName, wallet, retries - 1);
       }
       throw new Error(
         `Failed after ${this.MAX_RETRIES} retries for ${networkName}: ${error.message}`
@@ -217,11 +224,13 @@ export class DDService implements OnModuleInit {
       const [network0Tx, network1Tx] = await Promise.all([
         this.executeTransaction(
           params.config.Network0.swapParams,
-          params.config.Network0.NetworkName
+          params.config.Network0.NetworkName,
+          params.config.Network0.wallet
         ),
         this.executeTransaction(
           params.config.Network1.swapParams,
-          params.config.Network1.NetworkName
+          params.config.Network1.NetworkName,
+          params.config.Network1.wallet
         ),
       ]);
 
