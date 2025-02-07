@@ -243,7 +243,7 @@ export class DDService implements OnModuleInit {
       ) {
         throw new Error(
           `Insufficient balance for ${params.config.Network0.swapParams.fromToken}
-          ${network0TokenBalance.balance} < ${params.config.Amounts_In[0].amount}
+          ${network0TokenBalance.balance} < ${params.config.Amounts_In[0].amount * 10 ** network0TokenBalance.decimals}
           chain: ${params.config.Network0.NetworkName}`
         );
       }
@@ -256,7 +256,7 @@ export class DDService implements OnModuleInit {
       ) {
         throw new Error(
           `Insufficient allowance for ${params.config.Network0.swapParams.fromToken}
-          ${network0TokenBalance.currentAllowance} < ${params.config.Amounts_In[0].amount}
+          ${network0TokenBalance.currentAllowance} < ${params.config.Amounts_In[0].amount * 10 ** network0TokenBalance.decimals}
           chain: ${params.config.Network0.NetworkName}`
         );
       }
@@ -280,7 +280,7 @@ export class DDService implements OnModuleInit {
       ) {
         throw new Error(
           `Insufficient balance for ${params.config.Network1.swapParams.fromToken}
-          ${network1TokenBalance.balance} < ${params.config.Amounts_In[1].amount}
+          ${network1TokenBalance.balance} < ${params.config.Amounts_In[1].amount * 10 ** network1TokenBalance.decimals}
           chain: ${params.config.Network1.NetworkName}`
         );
       }
@@ -293,7 +293,7 @@ export class DDService implements OnModuleInit {
       ) {
         throw new Error(
           `Insufficient allowance for ${params.config.Network1.swapParams.fromToken}
-          ${network1TokenBalance.currentAllowance} < ${params.config.Amounts_In[1].amount}
+          ${network1TokenBalance.currentAllowance} < ${params.config.Amounts_In[1].amount * 10 ** network1TokenBalance.decimals}
           chain: ${params.config.Network1.NetworkName}`
         );
       }
@@ -309,11 +309,11 @@ export class DDService implements OnModuleInit {
           params.config.Network0.NetworkName,
           params.config.Network0.wallet
         ),
-        // this.executeTransaction(
-        //   params.config.Network1.swapParams,
-        //   params.config.Network1.NetworkName,
-        //   params.config.Network1.wallet
-        // ),
+        this.executeTransaction(
+          params.config.Network1.swapParams,
+          params.config.Network1.NetworkName,
+          params.config.Network1.wallet
+        ),
       ]);
 
       // // Update token balances after successful execution

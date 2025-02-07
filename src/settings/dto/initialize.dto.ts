@@ -25,9 +25,8 @@ export class EVMToken {
 }
 
 export class EVMChain {
-  @IsNumber()
   @IsNotEmpty()
-  chainId: number;
+  chainId: string;
 
   @ValidateNested({ each: true })
   @Type(() => EVMToken)

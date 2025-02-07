@@ -216,6 +216,7 @@ async function sendAndSwap({ swapData, client, logger }: SendAndSwapParams) {
     logger.log(`Swap transaction sent: ${hash}`);
     const receipt = await client.waitForTransactionReceipt({ hash });
     logger.log(`Swap transaction receipt: ${receipt.status}`);
+    return receipt;
   } catch (error) {
     logger.log(`OKX swap error: ${error}`, "error");
   }
@@ -238,26 +239,6 @@ export async function executeOkxSwap({
   client,
   logger,
 }: EVMSwapParams & { client: WalletClientConfig; logger: LoggerService }) {
-  // const spenderAddress =
-  //   OKX_SPENDER_ADDRESSES[chainId as keyof typeof OKX_SPENDER_ADDRESSES];
-
-  // const allowanceAmount = await getAllowance({
-  //   ownerAddress: USER_ADDRESS,
-  //   spenderAddress,
-  //   client,
-  //   tokenAddress: fromToken,
-  // });
-  // if (allowanceAmount < parseFloat(amount)) {
-  //   await sendApproveTx({
-  //     ownerAddress: USER_ADDRESS,
-  //     fromAmount: amount,
-  //     client,
-  //     chainId: chainId,
-  //     fromTokenAddress: fromToken,
-  //     spenderAddress,
-  //   });
-  // }
-
   const swapData = await getSwapData({
     chainId,
     fromTokenAddress: fromToken,
@@ -271,9 +252,11 @@ export async function executeOkxSwap({
     throw new Error(swapData.message);
   }
 
-  await sendAndSwap({
+  const receipt = await sendAndSwap({
     swapData: swapData.data,
     client,
     logger,
   });
+
+  return receipt;
 }

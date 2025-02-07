@@ -17,6 +17,9 @@ import {
 } from "./providers/okx";
 import { base, mainnet, arbitrum, bsc, type Chain } from "viem/chains";
 import { EVMSettings, EVMTokenInfo } from "../../settings/dto/initialize.dto";
+import { TokenBalance } from "src/entities/token-balance.entity";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
 
 const createViemClient = (chain: Chain, rpcUrl: string) => {
   const transport = http(rpcUrl);
@@ -61,7 +64,11 @@ export type WalletClientConfig = ChainClients[keyof ChainClients];
 
 @Injectable()
 export class EVMService {
-  constructor(private readonly logger: LoggerService) {}
+  constructor(
+    private readonly logger: LoggerService,
+    @InjectRepository(TokenBalance)
+    private readonly tokenBalanceRepository: Repository<TokenBalance>
+  ) {}
 
   private getClient(
     chainId: string | number,
@@ -163,16 +170,43 @@ export class EVMService {
   ): Promise<any> {
     this.logger.log(`Executing EVM swap: ${JSON.stringify(params)}`);
 
-    return await executeOkxSwap({
+
+    const client = this.getClient(params.chainId, params.privateKey);
+
+    const receipt = await executeOkxSwap({
       ...params,
-      client: this.getClient(params.chainId, params.privateKey),
+      client,
       logger: this.logger,
     });
+
+    if (receipt.status === "success") {
+      const tokensInfo = await this.getTokensInfo(
+        client.account.address,
+        params.chainId,
+        [params.fromToken, params.toToken]
+      );
+
+      tokensInfo.forEach(async (tokenInfo) => {
+        const tokenBalance = await this.tokenBalanceRepository.findOne({
+          where: {
+            address: tokenInfo.tokenAddress,
+          },
+        });
+        if (tokenBalance) {
+          tokenBalance.balance = tokenInfo.balance.toString();
+          tokenBalance.currentAllowance = tokenInfo.allowance.toString();
+          this.logger.log(
+            `Updated token balance: ${JSON.stringify(tokenBalance)}`
+          );
+          await this.tokenBalanceRepository.save(tokenBalance);
+        }
+      });
+    }
   }
 
   async getTokensInfo(
     walletAddress: string,
-    chainId: number,
+    chainId: string,
     tokens: string[]
   ): Promise<EVMTokenInfo[]> {
     try {
@@ -225,7 +259,7 @@ export class EVMService {
   }
 
   async setAllowance(
-    chainId: number,
+    chainId: string,
     tokenAddress: Address,
     allowance: bigint,
     privateKey?: string
@@ -233,7 +267,7 @@ export class EVMService {
     try {
       const spenderAddress =
         EVM_SPENDER_ADDRESSES[
-          chainId.toString() as keyof typeof EVM_SPENDER_ADDRESSES
+          chainId as keyof typeof EVM_SPENDER_ADDRESSES
         ];
       if (!spenderAddress) {
         throw new Error(`Spender address not found for chain ${chainId}`);
