@@ -14,10 +14,11 @@ import bs58 from "bs58";
 import { SolanaSettings } from "src/settings/dto/initialize.dto";
 
 export type TokenBalance = {
-  mint: string;
-  amount: number;
+  address: string;
+  balance: string;
   decimals: number;
   uiAmount: number;
+  chainId: string;
 };
 
 export type SolanaSwapParams = {
@@ -124,10 +125,11 @@ export class SolanaService {
       const decimals = mintDecimals.get(mintAddress) || 0;
 
       tokenBalances.push({
-        mint: mintAddress,
-        amount: Number(amount),
+        address: mintAddress,
+        balance: amount.toString(),
         decimals,
         uiAmount: Number(amount) / Math.pow(10, decimals),
+        chainId: "101",
       });
     }
 

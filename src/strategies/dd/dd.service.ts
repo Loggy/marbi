@@ -10,9 +10,10 @@ import {
 import { DexRouterService } from "../../dex-router/dex-router.service";
 import { LoggerService } from "../../logger/logger.service";
 import { SettingsService } from "../../settings/settings.service";
-import { CreateOrderDto, NetworkConfig } from "./dto/create-order.dto";
+import { CreateOrderDto, NetworkConfig, Wallet } from "./dto/create-order.dto";
 import { Initialize } from "src/entities/initialize.entity";
 import { EVMSwapParams } from "src/blockchain/evm/providers/okx";
+import { TokenBalance } from "src/entities/token-balance.entity";
 @Injectable()
 export class DDService implements OnModuleInit {
   private readonly MAX_RETRIES = 5;
@@ -22,6 +23,8 @@ export class DDService implements OnModuleInit {
     private orderRepository: Repository<Order>,
     @InjectRepository(Initialize)
     private initializeRepository: Repository<Initialize>,
+    @InjectRepository(TokenBalance)
+    private tokenBalanceRepository: Repository<TokenBalance>,
     private evmService: EVMService,
     private solanaService: SolanaService,
     private dexRouterService: DexRouterService,
@@ -31,7 +34,7 @@ export class DDService implements OnModuleInit {
 
   async onModuleInit() {
     try {
-      await this.initializeFromLastConfig();
+      // await this.initializeFromLastConfig();
     } catch (error) {
       await this.logger.log(
         `Failed to initialize from last config: ${error.message}`,
@@ -172,7 +175,7 @@ export class DDService implements OnModuleInit {
   private async executeTransaction(
     params: SolanaSwapParams | EVMSwapParams,
     networkName: string,
-    wallet: { address: string; key: string },
+    wallet: Wallet,
     retries = this.MAX_RETRIES
   ): Promise<any> {
     const execute = async () => {
@@ -197,7 +200,12 @@ export class DDService implements OnModuleInit {
           `Retry attempt ${this.MAX_RETRIES - retries + 1} for ${networkName}: ${error.message}`,
           "warn"
         );
-        return this.executeTransaction(params, networkName, wallet, retries - 1);
+        return this.executeTransaction(
+          params,
+          networkName,
+          wallet,
+          retries - 1
+        );
       }
       throw new Error(
         `Failed after ${this.MAX_RETRIES} retries for ${networkName}: ${error.message}`
@@ -216,22 +224,96 @@ export class DDService implements OnModuleInit {
     );
 
     try {
+      const network0TokenBalance = await this.tokenBalanceRepository.findOne({
+        where: {
+          address: params.config.Network0.swapParams.fromToken,
+        },
+      });
+
+      if (!network0TokenBalance) {
+        throw new Error(
+          `Token balance not found for ${params.config.Network0.swapParams.fromToken}
+          chain: ${params.config.Network0.NetworkName}`
+        );
+      }
+
+      if (
+        Number(network0TokenBalance.balance) <
+        params.config.Amounts_In[0].amount * 10 ** network0TokenBalance.decimals
+      ) {
+        throw new Error(
+          `Insufficient balance for ${params.config.Network0.swapParams.fromToken}
+          ${network0TokenBalance.balance} < ${params.config.Amounts_In[0].amount}
+          chain: ${params.config.Network0.NetworkName}`
+        );
+      }
+
+      if (
+        Number(network0TokenBalance.currentAllowance) <
+          params.config.Amounts_In[0].amount *
+            10 ** network0TokenBalance.decimals &&
+        network0TokenBalance.chainId !== "101"
+      ) {
+        throw new Error(
+          `Insufficient allowance for ${params.config.Network0.swapParams.fromToken}
+          ${network0TokenBalance.currentAllowance} < ${params.config.Amounts_In[0].amount}
+          chain: ${params.config.Network0.NetworkName}`
+        );
+      }
+
+      const network1TokenBalance = await this.tokenBalanceRepository.findOne({
+        where: {
+          address: params.config.Network1.swapParams.fromToken,
+        },
+      });
+
+      if (!network1TokenBalance) {
+        throw new Error(
+          `Token balance not found for ${params.config.Network1.swapParams.fromToken}
+          chain: ${params.config.Network1.NetworkName}`
+        );
+      }
+
+      if (
+        Number(network1TokenBalance.balance) <
+        params.config.Amounts_In[1].amount * 10 ** network1TokenBalance.decimals
+      ) {
+        throw new Error(
+          `Insufficient balance for ${params.config.Network1.swapParams.fromToken}
+          ${network1TokenBalance.balance} < ${params.config.Amounts_In[1].amount}
+          chain: ${params.config.Network1.NetworkName}`
+        );
+      }
+
+      if (
+        Number(network1TokenBalance.currentAllowance) <
+          params.config.Amounts_In[1].amount *
+            10 ** network1TokenBalance.decimals &&
+        network1TokenBalance.chainId !== "101"
+      ) {
+        throw new Error(
+          `Insufficient allowance for ${params.config.Network1.swapParams.fromToken}
+          ${network1TokenBalance.currentAllowance} < ${params.config.Amounts_In[1].amount}
+          chain: ${params.config.Network1.NetworkName}`
+        );
+      }
+
       // // First phase: Get routes (retried together)
       // const routes = await this.requestRoutesWithRetry(params);
       // await this.logger.log(`Routes: ${JSON.stringify(routes)}`);
 
       // Second phase: Execute transactions (retried separately)
-      const [network0Tx, network1Tx] = await Promise.all([
+      const [network0Tx] = await Promise.all([
         this.executeTransaction(
           params.config.Network0.swapParams,
           params.config.Network0.NetworkName,
           params.config.Network0.wallet
         ),
-        this.executeTransaction(
-          params.config.Network1.swapParams,
-          params.config.Network1.NetworkName,
-          params.config.Network1.wallet
-        ),
+        // this.executeTransaction(
+        //   params.config.Network1.swapParams,
+        //   params.config.Network1.NetworkName,
+        //   params.config.Network1.wallet
+        // ),
       ]);
 
       // // Update token balances after successful execution

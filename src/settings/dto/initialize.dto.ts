@@ -8,6 +8,7 @@ import {
 } from "class-validator";
 import { Type } from "class-transformer";
 import { Address } from "viem";
+import { Wallet } from "src/strategies/dd/dto/create-order.dto";
 
 export class EVMToken {
   @IsString()
@@ -35,9 +36,10 @@ export class EVMChain {
 }
 
 export class EVMSettings {
-  @IsString()
+  @ValidateNested()
+  @Type(() => Wallet)
   @IsNotEmpty()
-  walletAddress: Address;
+  wallet: Wallet;
 
   @ValidateNested({ each: true })
   @Type(() => EVMChain)
@@ -72,7 +74,7 @@ export class InitializeDto {
   @Type(() => SolanaSettings)
   @IsOptional()
   solanaSettings?: SolanaSettings;
-} 
+}
 
 export class EVMTokenInfo {
   @IsString()

@@ -8,6 +8,7 @@ import { EVMChain, InitializeDto } from "./dto/initialize.dto";
 import { all } from "axios";
 import { Address } from "viem";
 import { Initialize } from "src/entities/initialize.entity";
+import { Wallet } from "src/strategies/dd/dto/create-order.dto";
 
 @Injectable()
 export class SettingsService {
@@ -81,7 +82,7 @@ export class SettingsService {
       results.evm = {};
       for (const chain of params.evmSettings.chains) {
         results.evm[chain.chainId] = await this.initializeEVMChain(
-          params.evmSettings.walletAddress,
+          params.evmSettings.wallet,
           chain
         );
       }
@@ -98,17 +99,21 @@ export class SettingsService {
 
   async initializeSolana(walletAddress: string) {
     try {
-      return await this.solanaService.getWalletBalances(walletAddress);
+      const result = await this.solanaService.getWalletBalances(walletAddress);
+      for (const token of result.tokens) {
+        await this.updateTokenBalance(token);
+      }
+      return result;
     } catch (error) {
       console.error(error);
       return null;
     }
   }
 
-  async initializeEVMChain(walletAddress: string, chain: EVMChain) {
+  async initializeEVMChain(wallet: Wallet, chain: EVMChain) {
     try {
       const tokenInfos = await this.evmService.getTokensInfo(
-        walletAddress,
+        wallet.address,
         chain.chainId,
         chain.tokens.map((token) => token.tokenAddress)
       );
@@ -121,7 +126,8 @@ export class SettingsService {
           await this.evmService.setAllowance(
             chain.chainId,
             token.tokenAddress,
-            BigInt(token.setAllowance)
+            BigInt(token.setAllowance),
+            wallet.key
           );
           tokenInfo.allowance = BigInt(token.setAllowance);
         }

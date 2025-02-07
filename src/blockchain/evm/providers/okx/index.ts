@@ -4,6 +4,7 @@ import { Address, erc20Abi } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { WalletClientConfig } from "../../evm.service";
 import { config } from "dotenv";
+import { LoggerService } from "src/logger/logger.service";
 config();
 
 const API_BASE_URL = "https://www.okx.com/api/v5/dex/aggregator";
@@ -188,9 +189,10 @@ export async function getSwapData(swapParams: SwapParams) {
 type SendAndSwapParams = {
   swapData: any;
   client: WalletClientConfig;
+  logger: LoggerService;
 };
 
-async function sendAndSwap({ swapData, client }: SendAndSwapParams) {
+async function sendAndSwap({ swapData, client, logger }: SendAndSwapParams) {
   const nonce = await client.getTransactionCount({
     address: client.account.address,
   });
@@ -211,10 +213,11 @@ async function sendAndSwap({ swapData, client }: SendAndSwapParams) {
     const hash = await client.sendRawTransaction({
       serializedTransaction: tx,
     });
+    logger.log(`Swap transaction sent: ${hash}`);
     const receipt = await client.waitForTransactionReceipt({ hash });
-    const logs = receipt.logs;
+    logger.log(`Swap transaction receipt: ${receipt.status}`);
   } catch (error) {
-    console.log("error:", error);
+    logger.log(`OKX swap error: ${error}`, "error");
   }
 }
 
@@ -233,26 +236,27 @@ export async function executeOkxSwap({
   amount,
   slippage = DEFAULT_SLIPPAGE,
   client,
-}: EVMSwapParams & { client: WalletClientConfig }) {
-  const spenderAddress =
-    OKX_SPENDER_ADDRESSES[chainId as keyof typeof OKX_SPENDER_ADDRESSES];
+  logger,
+}: EVMSwapParams & { client: WalletClientConfig; logger: LoggerService }) {
+  // const spenderAddress =
+  //   OKX_SPENDER_ADDRESSES[chainId as keyof typeof OKX_SPENDER_ADDRESSES];
 
-  const allowanceAmount = await getAllowance({
-    ownerAddress: USER_ADDRESS,
-    spenderAddress,
-    client,
-    tokenAddress: fromToken,
-  });
-  if (allowanceAmount < parseFloat(amount)) {
-    await sendApproveTx({
-      ownerAddress: USER_ADDRESS,
-      fromAmount: amount,
-      client,
-      chainId: chainId,
-      fromTokenAddress: fromToken,
-      spenderAddress,
-    });
-  }
+  // const allowanceAmount = await getAllowance({
+  //   ownerAddress: USER_ADDRESS,
+  //   spenderAddress,
+  //   client,
+  //   tokenAddress: fromToken,
+  // });
+  // if (allowanceAmount < parseFloat(amount)) {
+  //   await sendApproveTx({
+  //     ownerAddress: USER_ADDRESS,
+  //     fromAmount: amount,
+  //     client,
+  //     chainId: chainId,
+  //     fromTokenAddress: fromToken,
+  //     spenderAddress,
+  //   });
+  // }
 
   const swapData = await getSwapData({
     chainId,
@@ -270,5 +274,6 @@ export async function executeOkxSwap({
   await sendAndSwap({
     swapData: swapData.data,
     client,
+    logger,
   });
 }

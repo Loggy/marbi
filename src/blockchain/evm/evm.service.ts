@@ -63,7 +63,10 @@ export type WalletClientConfig = ChainClients[keyof ChainClients];
 export class EVMService {
   constructor(private readonly logger: LoggerService) {}
 
-  private getClient(chainId: string | number, privateKey?: string): WalletClientConfig {
+  private getClient(
+    chainId: string | number,
+    privateKey?: string
+  ): WalletClientConfig {
     try {
       const chainIdStr = chainId.toString();
       if (chainIdStr in CHAIN_CLIENTS) {
@@ -155,12 +158,15 @@ export class EVMService {
     }
   }
 
-  async executeSwap(params: EVMSwapParams & { privateKey?: string }): Promise<any> {
+  async executeSwap(
+    params: EVMSwapParams & { privateKey?: string }
+  ): Promise<any> {
     this.logger.log(`Executing EVM swap: ${JSON.stringify(params)}`);
 
     return await executeOkxSwap({
       ...params,
       client: this.getClient(params.chainId, params.privateKey),
+      logger: this.logger,
     });
   }
 
@@ -221,7 +227,8 @@ export class EVMService {
   async setAllowance(
     chainId: number,
     tokenAddress: Address,
-    allowance: bigint
+    allowance: bigint,
+    privateKey?: string
   ): Promise<string | null> {
     try {
       const spenderAddress =
@@ -232,8 +239,13 @@ export class EVMService {
         throw new Error(`Spender address not found for chain ${chainId}`);
       }
 
-      const client = this.getClient(chainId);
-      return await client.writeContract({
+      const client = this.getClient(chainId, privateKey);
+
+      this.logger.log(
+        `Setting allowance for ${tokenAddress} to ${allowance} on chain ${chainId}`
+      );
+
+      const hash = await client.writeContract({
         address: tokenAddress as `0x${string}`,
         abi: erc20Abi,
         functionName: "approve",
@@ -241,6 +253,8 @@ export class EVMService {
         chain: client.chain,
         account: client.account,
       });
+      await client.waitForTransactionReceipt({ hash });
+      return hash;
     } catch (error) {
       await this.logger.log(
         `Failed to set allowance: ${error.message}`,
