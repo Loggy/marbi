@@ -7,6 +7,7 @@ import { Initialize } from "../entities/initialize.entity";
 import { EVMModule } from "../blockchain/evm/evm.module";
 import { SolanaModule } from "../blockchain/solana/solana.module";
 import { LoggerModule } from "src/logger/logger.module";
+import { AppStateService } from "./app-state.service";
 
 @Module({
   imports: [
@@ -16,7 +17,7 @@ import { LoggerModule } from "src/logger/logger.module";
     LoggerModule,
   ],
   controllers: [SettingsController],
-  providers: [SettingsService],
-  exports: [SettingsService],
+  providers: [SettingsService, AppStateService],
+  exports: [SettingsService, AppStateService],
 })
 export class SettingsModule {}

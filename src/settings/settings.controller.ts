@@ -61,7 +61,6 @@ export class SettingsController {
   async initialize(@Body() params: InitializeDto) {
     await this.settingsService.saveInitialize(params);
     const results = await this.settingsService.initialize(params);
-    this.logger.log(`Settings initialized: ${JSON.stringify(results)}`);
     return results;
   }
 }

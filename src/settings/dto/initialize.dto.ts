@@ -5,6 +5,7 @@ import {
   IsNumber,
   IsOptional,
   IsArray,
+  IsBoolean,
 } from "class-validator";
 import { Type } from "class-transformer";
 import { Address } from "viem";
@@ -87,4 +88,41 @@ export class EVMTokenInfo {
   @IsNumber()
   @IsNotEmpty()
   allowance: bigint;
+}
+
+export interface TokenInitResult {
+  tokenAddress: string;
+  balance: string;
+  allowance: string;
+  minAllowance: string;
+  success: boolean;
+  error?: string;
+  allowanceUpdated?: boolean;
+}
+
+export interface ChainInitResult {
+  chainId: string;
+  tokens: TokenInitResult[];
+  success: boolean;
+  error?: string;
+}
+
+export interface EVMInitResult {
+  chains: ChainInitResult[];
+  success: boolean;
+  error?: string;
+}
+
+export interface SolanaTokenInitResult {
+  tokenAddress: string;
+  balance: string;
+  decimals: number;
+  success: boolean;
+  error?: string;
+}
+
+export interface SolanaInitResult {
+  tokens: SolanaTokenInitResult[];
+  success: boolean;
+  error?: string;
 }

@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit } from "@nestjs/common";
+import { Injectable, OnModuleInit, BadRequestException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { Order } from "../../entities/order.entity";
@@ -14,6 +14,7 @@ import { CreateOrderDto, NetworkConfig, Wallet } from "./dto/create-order.dto";
 import { Initialize } from "src/entities/initialize.entity";
 import { EVMSwapParams } from "src/blockchain/evm/providers/okx";
 import { TokenBalance } from "src/entities/token-balance.entity";
+import { AppStateService } from "../../settings/app-state.service";
 @Injectable()
 export class DDService implements OnModuleInit {
   private readonly MAX_RETRIES = 5;
@@ -29,7 +30,8 @@ export class DDService implements OnModuleInit {
     private solanaService: SolanaService,
     private dexRouterService: DexRouterService,
     private settingsService: SettingsService,
-    private logger: LoggerService
+    private logger: LoggerService,
+    private appStateService: AppStateService
   ) {}
 
   async onModuleInit() {
@@ -214,6 +216,12 @@ export class DDService implements OnModuleInit {
   }
 
   async createOrder(params: CreateOrderDto): Promise<Order> {
+    // Check if app is initialized
+    if (!this.appStateService.getIsInitialized()) {
+      this.logger.log("App is not initialized yet", "error");
+      throw new BadRequestException("App is not initialized yet");
+    }
+
     const order = this.orderRepository.create({
       params,
       status: "PENDING",
