@@ -54,20 +54,14 @@ export class DDController {
       (fromNetwork.swapParams as SolanaSwapParams) = {
         fromToken: fromNetwork.StartTokenAddress,
         toToken: fromNetwork.FinishTokenAddress,
-        amount: String(
-          params.config.Amounts_In[0].amount *
-            10 ** Number(fromNetwork.StartTokenDecimals)
-        ),
+        amount: params.spread_entry.from_network_amount_in_tokens.toString(),
         slippage: fromNetwork.SlippagePercent,
       };
     } else {
       (fromNetwork.swapParams as EVMSwapParams) = {
         fromToken: fromNetwork.StartTokenAddress as `0x${string}`,
         toToken: fromNetwork.FinishTokenAddress as `0x${string}`,
-        amount: String(
-          params.config.Amounts_In[0].amount *
-            10 ** Number(fromNetwork.StartTokenDecimals)
-        ),
+        amount: params.spread_entry.from_network_amount_in_tokens.toString(),
         slippage: fromNetwork.SlippagePercent,
         chainId: getChainIdByName(fromNetwork.NetworkName),
       };
@@ -77,20 +71,14 @@ export class DDController {
       (toNetwork.swapParams as SolanaSwapParams) = {
         fromToken: toNetwork.FinishTokenAddress,
         toToken: toNetwork.StartTokenAddress,
-        amount: String(
-          params.config.Amounts_In[1].amount *
-            10 ** Number(toNetwork.FinishTokenDecimals)
-        ),
+        amount: params.spread_entry.to_network_amount_in_tokens.toString(),
         slippage: toNetwork.SlippagePercent,
       };
     } else {
       (toNetwork.swapParams as EVMSwapParams) = {
         fromToken: toNetwork.FinishTokenAddress as `0x${string}`,
         toToken: toNetwork.StartTokenAddress as `0x${string}`,
-        amount: String(
-          params.config.Amounts_In[1].amount *
-            10 ** Number(toNetwork.FinishTokenDecimals)
-        ),
+        amount: params.spread_entry.to_network_amount_in_tokens.toString(),
         slippage: toNetwork.SlippagePercent,
         chainId: getChainIdByName(toNetwork.NetworkName),
       };
