@@ -228,7 +228,7 @@ export class DDService implements OnModuleInit {
     });
 
     await this.logger.log(
-      `Creating new DD order for ${params.config.Ticker} with amount ${params.config.Amounts_In[0].amount + params.config.Amounts_In[1].amount} USDC`
+      `Creating new DD order for ${params.config.Ticker} on ${params.config.Network0.NetworkName} and ${params.config.Network1.NetworkName}`
     );
 
     try {

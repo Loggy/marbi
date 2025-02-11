@@ -14,6 +14,7 @@ import {
   executeOkxSwap,
   EVMSwapParams,
   OKX_SPENDER_ADDRESSES,
+  getOKXSupportedChains,
 } from "./providers/okx";
 import { base, mainnet, arbitrum, bsc, type Chain } from "viem/chains";
 import { EVMSettings, EVMTokenInfo } from "../../settings/dto/initialize.dto";
@@ -69,6 +70,18 @@ export class EVMService {
     @InjectRepository(TokenBalance)
     private readonly tokenBalanceRepository: Repository<TokenBalance>
   ) {}
+
+  // async onModuleInit() {
+    // const responses = [];
+    // const supportedChainsIds = Object.keys(CHAIN_CLIENTS);
+    // for (const chainId of supportedChainsIds) {
+    //   const chains = await getOKXSupportedChains(chainId);
+    //   responses.push(chains);
+
+    //   await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait for 1 second
+    // }
+    // this.logger.log(`Supported chains: ${JSON.stringify(responses)}`, "info");
+  // }
 
   private getClient(
     chainId: string | number,
@@ -170,7 +183,6 @@ export class EVMService {
   ): Promise<any> {
     this.logger.log(`Executing EVM swap: ${JSON.stringify(params)}`);
 
-
     const client = this.getClient(params.chainId, params.privateKey);
 
     const receipt = await executeOkxSwap({
@@ -266,9 +278,7 @@ export class EVMService {
   ): Promise<string | null> {
     try {
       const spenderAddress =
-        EVM_SPENDER_ADDRESSES[
-          chainId as keyof typeof EVM_SPENDER_ADDRESSES
-        ];
+        EVM_SPENDER_ADDRESSES[chainId as keyof typeof EVM_SPENDER_ADDRESSES];
       if (!spenderAddress) {
         throw new Error(`Spender address not found for chain ${chainId}`);
       }

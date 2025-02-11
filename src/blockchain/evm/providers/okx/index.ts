@@ -84,6 +84,17 @@ type ApproveTransactionParams = {
   approveAmount: string;
 };
 
+export async function getOKXSupportedChains(chainId: string) {
+  const apiRequestUrl = getAggregatorRequestUrl("/supported/chain", {
+    chainId,
+  });
+  const res = await fetch(apiRequestUrl, {
+    method: "get",
+    headers: getHeaderParams(apiRequestUrl),
+  });
+  return res.json();
+}
+
 async function approveTransaction(
   approveTransactionParams: ApproveTransactionParams
 ) {
@@ -216,6 +227,11 @@ async function sendAndSwap({ swapData, client, logger }: SendAndSwapParams) {
     logger.log(`Swap transaction sent: ${hash}`);
     const receipt = await client.waitForTransactionReceipt({ hash });
     logger.log(`Swap transaction receipt: ${receipt.status}`);
+
+    if (receipt.status === "reverted") {
+      throw new Error("Swap reverted");
+    }
+
     return receipt;
   } catch (error) {
     logger.log(`OKX swap error: ${error}`, "error");
