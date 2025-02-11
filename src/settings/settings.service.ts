@@ -90,16 +90,16 @@ export class SettingsService {
 
     if (params.solanaSettings) {
       results.solana = await this.initializeSolana(
-        params.solanaSettings.walletAddress
+        params.solanaSettings.wallet
       );
     }
 
     return results;
   }
 
-  async initializeSolana(walletAddress: string) {
+  async initializeSolana(wallet: Wallet) {
     try {
-      const result = await this.solanaService.getWalletBalances(walletAddress);
+      const result = await this.solanaService.getWalletBalances(wallet.address);
       for (const token of result.tokens) {
         await this.updateTokenBalance(token);
       }

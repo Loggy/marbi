@@ -55,7 +55,7 @@ export class SolanaToken {
 export class SolanaSettings {
   @IsString()
   @IsNotEmpty()
-  walletAddress: string;
+  wallet: Wallet;
 
   @ValidateNested({ each: true })
   @Type(() => SolanaToken)

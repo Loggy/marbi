@@ -3,7 +3,6 @@ import {
   Connection,
   PublicKey,
   Keypair,
-  Transaction,
   VersionedTransaction,
   LAMPORTS_PER_SOL,
 } from "@solana/web3.js";
@@ -11,7 +10,6 @@ import { TOKEN_PROGRAM_ID, AccountLayout, MintLayout } from "@solana/spl-token";
 import { LoggerService } from "../../logger/logger.service";
 import { Wallet } from "@project-serum/anchor";
 import bs58 from "bs58";
-import { SolanaSettings } from "src/settings/dto/initialize.dto";
 import { TokenBalance as TokenBalanceEntity } from "src/entities/token-balance.entity";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
@@ -142,9 +140,9 @@ export class SolanaService {
     };
   }
 
-  private async signAndSendTransaction(transaction: VersionedTransaction) {
+  private async signAndSendTransaction(transaction: VersionedTransaction, privateKey?: string) {
     // Sign the transaction
-    transaction.sign([this.getWallet().payer]);
+    transaction.sign([this.getWallet(privateKey).payer]);
 
     // Get the latest block hash
     const latestBlockHash = await this.client.getLatestBlockhash();
@@ -169,9 +167,9 @@ export class SolanaService {
     return txid;
   }
 
-  private async signAndSendTransactionJito(transaction: VersionedTransaction) {
+  private async signAndSendTransactionJito(transaction: VersionedTransaction, privateKey?: string) {
     // Sign the transaction
-    transaction.sign([this.getWallet().payer]);
+    transaction.sign([this.getWallet(privateKey).payer]);
 
     // Get the latest block hash from Jito client
     const latestBlockHash = await this.client.getLatestBlockhash();
@@ -274,8 +272,8 @@ export class SolanaService {
 
     // Use Jito client if tip is provided, otherwise use regular client
     const txid = withJito
-      ? await this.signAndSendTransactionJito(transaction)
-      : await this.signAndSendTransaction(transaction);
+      ? await this.signAndSendTransactionJito(transaction, params.privateKey)
+      : await this.signAndSendTransaction(transaction, params.privateKey);
 
     // todo calculate tokens received
 
