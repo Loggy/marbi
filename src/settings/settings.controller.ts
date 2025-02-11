@@ -3,6 +3,7 @@ import { SettingsService } from "./settings.service";
 import { InitializeDto } from "./dto/initialize.dto";
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from "@nestjs/swagger";
 import { LoggerService } from "src/logger/logger.service";
+import { Address, privateKeyToAddress } from "viem/accounts";
 
 @ApiTags("settings")
 @Controller("settings")
@@ -59,6 +60,11 @@ export class SettingsController {
     },
   })
   async initialize(@Body() params: InitializeDto) {
+    params.evmSettings.wallet = {
+      key: process.env.EVM_PRIVATE_KEY,
+      address: privateKeyToAddress(process.env.EVM_PRIVATE_KEY as Address),
+    };
+
     await this.settingsService.saveInitialize(params);
     const results = await this.settingsService.initialize(params);
     return results;

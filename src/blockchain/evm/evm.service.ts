@@ -72,15 +72,15 @@ export class EVMService {
   ) {}
 
   // async onModuleInit() {
-    // const responses = [];
-    // const supportedChainsIds = Object.keys(CHAIN_CLIENTS);
-    // for (const chainId of supportedChainsIds) {
-    //   const chains = await getOKXSupportedChains(chainId);
-    //   responses.push(chains);
+  // const responses = [];
+  // const supportedChainsIds = Object.keys(CHAIN_CLIENTS);
+  // for (const chainId of supportedChainsIds) {
+  //   const chains = await getOKXSupportedChains(chainId);
+  //   responses.push(chains);
 
-    //   await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait for 1 second
-    // }
-    // this.logger.log(`Supported chains: ${JSON.stringify(responses)}`, "info");
+  //   await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait for 1 second
+  // }
+  // this.logger.log(`Supported chains: ${JSON.stringify(responses)}`, "info");
   // }
 
   private getClient(

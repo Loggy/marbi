@@ -10,33 +10,67 @@ import { CreateOrderDto } from "./dto/create-order.dto";
 import { getChainIdByName } from "src/blockchain/evm/evm.service";
 import { SolanaSwapParams } from "src/blockchain/solana/solana.service";
 import { EVMSwapParams } from "src/blockchain/evm/providers/okx";
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse } from "@nestjs/swagger";
+import { Address, privateKeyToAddress } from "viem/accounts";
+import { Keypair, PublicKey } from "@solana/web3.js";
 
-@ApiTags('dd')
+import { config } from "dotenv";
+import { Wallet } from "@project-serum/anchor";
+import bs58 from "bs58";
+
+config();
+@ApiTags("dd")
 @Controller("dd")
 export class DDController {
   constructor(private readonly ddService: DDService) {}
 
   @Post()
   @UsePipes(new ValidationPipe({ transform: true }))
-  @ApiOperation({ summary: 'Create a new DD order' })
-  @ApiResponse({ 
-    status: 201, 
-    description: 'Order created successfully',
+  @ApiOperation({ summary: "Create a new DD order" })
+  @ApiResponse({
+    status: 201,
+    description: "Order created successfully",
     schema: {
-      type: 'object',
+      type: "object",
       properties: {
-        id: { type: 'string' },
-        status: { type: 'string' },
-        params: { type: 'object' },
-        result: { type: 'object' },
-        createdAt: { type: 'string', format: 'date-time' }
-      }
-    }
+        id: { type: "string" },
+        status: { type: "string" },
+        params: { type: "object" },
+        result: { type: "object" },
+        createdAt: { type: "string", format: "date-time" },
+      },
+    },
   })
-  @ApiResponse({ status: 400, description: 'Invalid input' })
-  @ApiResponse({ status: 500, description: 'Internal server error' })
+  @ApiResponse({ status: 400, description: "Invalid input" })
+  @ApiResponse({ status: 500, description: "Internal server error" })
   async createOrder(@Body() params: CreateOrderDto) {
+    const defaultPrivateKeyBytes = bs58.decode(process.env.SOLANA_PRIVATE_KEY);
+    const wallet = new Wallet(Keypair.fromSecretKey(defaultPrivateKeyBytes));
+    const solanaWalletAddress = wallet.publicKey.toBase58();
+    if (params.config.Network0.NetworkName === "solana") {
+      params.config.Network0.wallet = {
+        key: process.env.SOLANA_PRIVATE_KEY,
+        address: solanaWalletAddress,
+      };
+    } else {
+      params.config.Network0.wallet = {
+        key: process.env.EVM_PRIVATE_KEY,
+        address: privateKeyToAddress(process.env.EVM_PRIVATE_KEY as Address),
+      };
+    }
+
+    if (params.config.Network1.NetworkName === "solana") {
+      params.config.Network1.wallet = {
+        key: process.env.SOLANA_PRIVATE_KEY,
+        address: solanaWalletAddress,
+      };
+    } else {
+      params.config.Network1.wallet = {
+        key: process.env.EVM_PRIVATE_KEY,
+        address: privateKeyToAddress(process.env.EVM_PRIVATE_KEY as Address),
+      };
+    }
+
     const fromNetworkName = params.spread_entry.from_network_name;
     const toNetworkName = params.spread_entry.to_network_name;
 
