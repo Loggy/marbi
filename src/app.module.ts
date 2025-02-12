@@ -11,6 +11,7 @@ import { TokenBalance } from "./entities/token-balance.entity";
 
 import { config } from "dotenv";
 import { Initialize } from "./entities/initialize.entity";
+import { JitoModule } from "./blockchain/solana/jito/jito.module";
 config();
 
 @Module({
@@ -31,6 +32,7 @@ config();
     DexRouterModule,
     DDModule,
     SettingsModule,
+    JitoModule,
   ],
 })
 export class AppModule {}

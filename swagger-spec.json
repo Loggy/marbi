@@ -218,23 +218,6 @@
           "amount"
         ]
       },
-      "Wallet": {
-        "type": "object",
-        "properties": {
-          "address": {
-            "type": "string",
-            "description": "Wallet address"
-          },
-          "key": {
-            "type": "string",
-            "description": "Wallet key"
-          }
-        },
-        "required": [
-          "address",
-          "key"
-        ]
-      },
       "NetworkConfig": {
         "type": "object",
         "properties": {
@@ -295,14 +278,6 @@
           "swapParams": {
             "type": "object",
             "description": "Swap parameters for the network"
-          },
-          "wallet": {
-            "description": "Wallet information for the network",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Wallet"
-              }
-            ]
           }
         },
         "required": [
@@ -310,8 +285,7 @@
           "StartTokenAddress",
           "FinishTokenAddress",
           "SlippagePercent",
-          "swapParams",
-          "wallet"
+          "swapParams"
         ]
       },
       "Config": {

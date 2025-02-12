@@ -9,20 +9,19 @@ import {
 } from "class-validator";
 import { Type } from "class-transformer";
 import { Address } from "viem";
-import { Wallet } from "src/strategies/dd/dto/create-order.dto";
 
 export class EVMToken {
   @IsString()
   @IsNotEmpty()
   tokenAddress: Address;
 
-  @IsNumber()
+  @IsString()
   @IsNotEmpty()
-  minAllowance: number;
+  min_allowance: string;
 
-  @IsNumber()
+  @IsString()
   @IsNotEmpty()
-  setAllowance: number;
+  set_allowance: string;
 }
 
 export class EVMChain {
@@ -36,10 +35,13 @@ export class EVMChain {
 }
 
 export class EVMSettings {
-  @ValidateNested()
-  @Type(() => Wallet)
+  @IsString()
   @IsNotEmpty()
-  wallet: Wallet;
+  privateKey: string;
+
+  @IsString()
+  @IsNotEmpty()
+  walletAddress: Address;
 
   @ValidateNested({ each: true })
   @Type(() => EVMChain)
@@ -56,9 +58,12 @@ export class SolanaToken {
 export class SolanaSettings {
   @IsString()
   @IsNotEmpty()
-  wallet: Wallet;
+  privateKey: string;
 
-  @ValidateNested({ each: true })
+  @IsString()
+  @IsNotEmpty()
+  walletAddress: string;
+
   @Type(() => SolanaToken)
   @IsArray()
   tokens: SolanaToken[];

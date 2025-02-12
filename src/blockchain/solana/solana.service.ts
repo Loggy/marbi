@@ -13,6 +13,7 @@ import bs58 from "bs58";
 import { TokenBalance as TokenBalanceEntity } from "src/entities/token-balance.entity";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
+import { JitoService } from "./jito/jito.service";
 
 export type TokenBalance = {
   address: string;
@@ -37,7 +38,7 @@ export class SolanaService {
   private jitoClient: Connection;
   @InjectRepository(TokenBalanceEntity)
   private tokenBalanceRepository: Repository<TokenBalance>;
-  constructor(private readonly logger: LoggerService) {
+  constructor(private readonly logger: LoggerService, private readonly jitoService: JitoService) {
     this.client = new Connection(process.env.SOLANA_RPC_URL);
     this.jitoClient = new Connection(process.env.JITO_RPC_URL);
   }
@@ -204,7 +205,14 @@ export class SolanaService {
 
     const slippageBps = Number(params.slippage) * 100;
 
-    const withJito = params.jitoTipLamports > 0;
+    const withJito = true;
+
+    if (withJito) {
+      const tipFloorData = this.jitoService.getLatestTipFloorData();
+      if (tipFloorData) {
+        params.jitoTipLamports = Math.floor(tipFloorData * LAMPORTS_PER_SOL);
+      }
+    }
 
     this.logger.log(
       `Starting JUP swap
@@ -230,7 +238,7 @@ export class SolanaService {
     let prioritizationFeeLamports: any = {
       priorityLevelWithMaxLamports: {
         maxLamports: 10000000,
-        priorityLevel: "medium", // If you want to land transaction fast, set this to use `veryHigh`. You will pay on average higher priority fee.
+        priorityLevel: "veryHigh", // medium If you want to land transaction fast, set this to use `veryHigh`. You will pay on average higher priority fee.
       },
     };
 

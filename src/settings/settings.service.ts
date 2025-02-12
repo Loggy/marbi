@@ -14,10 +14,7 @@ import {
   SolanaTokenInitResult,
   SolanaToken,
 } from "./dto/initialize.dto";
-import { all } from "axios";
-import { Address } from "viem";
 import { Initialize } from "src/entities/initialize.entity";
-import { Wallet } from "src/strategies/dd/dto/create-order.dto";
 import { AppStateService } from "./app-state.service";
 import { LoggerService } from "../logger/logger.service";
 
@@ -97,7 +94,8 @@ export class SettingsService {
 
       for (const chain of params.evmSettings.chains) {
         const chainResult = await this.initializeEVMChain(
-          params.evmSettings.wallet,
+          params.evmSettings.privateKey,
+          params.evmSettings.walletAddress,
           chain
         );
         chainResults.push(chainResult);
@@ -117,7 +115,8 @@ export class SettingsService {
 
     if (params.solanaSettings) {
       results.solana = await this.initializeSolana(
-        params.solanaSettings.wallet
+        params.solanaSettings.privateKey,
+        params.solanaSettings.walletAddress
       );
     }
 
@@ -164,11 +163,14 @@ export class SettingsService {
     return results;
   }
 
-  async initializeSolana(wallet: Wallet): Promise<SolanaInitResult> {
+  async initializeSolana(
+    privateKey: string,
+    address: string
+  ): Promise<SolanaInitResult> {
     try {
       const tokenResults: SolanaTokenInitResult[] = [];
       const walletBalances = await this.solanaService.getWalletBalances(
-        wallet.address
+        address
       );
 
       for (const token of walletBalances.tokens) {
@@ -229,13 +231,14 @@ export class SettingsService {
   }
 
   async initializeEVMChain(
-    wallet: Wallet,
+    privateKey: string,
+    address: string,
     chain: EVMChain
   ): Promise<ChainInitResult> {
     try {
       const tokenResults: TokenInitResult[] = [];
       const tokenInfos = await this.evmService.getTokensInfo(
-        wallet.address,
+        address,
         chain.chainId,
         chain.tokens.map((token) => token.tokenAddress)
       );
@@ -251,7 +254,7 @@ export class SettingsService {
               tokenAddress: token.tokenAddress,
               balance: "0",
               allowance: "0",
-              minAllowance: token.minAllowance.toString(),
+              minAllowance: token.min_allowance.toString(),
               success: false,
               error: "Failed to fetch token info",
             });
@@ -259,22 +262,25 @@ export class SettingsService {
           }
 
           let allowanceUpdated = false;
-          if (tokenInfo.allowance < token.minAllowance) {
+          if (tokenInfo.allowance < BigInt(token.min_allowance)) {
             try {
-              await this.evmService.setAllowance(
+              const hash = await this.evmService.setAllowance(
                 chain.chainId,
                 token.tokenAddress,
-                BigInt(token.setAllowance),
-                wallet.key
+                BigInt(token.set_allowance),
+                privateKey
               );
-              tokenInfo.allowance = BigInt(token.setAllowance);
+              if (!hash) {
+                throw new Error("No hash from setAllowance");
+              }
+              tokenInfo.allowance = BigInt(token.set_allowance);
               allowanceUpdated = true;
             } catch (error) {
               tokenResults.push({
                 tokenAddress: token.tokenAddress,
                 balance: tokenInfo.balance.toString(),
                 allowance: tokenInfo.allowance.toString(),
-                minAllowance: token.minAllowance.toString(),
+                minAllowance: token.min_allowance.toString(),
                 success: false,
                 error: `Failed to update allowance: ${error.message}`,
                 allowanceUpdated: false,
@@ -288,7 +294,7 @@ export class SettingsService {
           newToken.chainId = chain.chainId.toString();
           newToken.balance = tokenInfo.balance.toString();
           newToken.currentAllowance = tokenInfo.allowance.toString();
-          newToken.minAllowance = token.minAllowance.toString();
+          newToken.minAllowance = token.min_allowance.toString();
 
           try {
             await this.updateTokenBalance(newToken);
@@ -296,7 +302,7 @@ export class SettingsService {
               tokenAddress: token.tokenAddress,
               balance: tokenInfo.balance.toString(),
               allowance: tokenInfo.allowance.toString(),
-              minAllowance: token.minAllowance.toString(),
+              minAllowance: token.min_allowance.toString(),
               success: true,
               allowanceUpdated,
             });
@@ -305,7 +311,7 @@ export class SettingsService {
               tokenAddress: token.tokenAddress,
               balance: tokenInfo.balance.toString(),
               allowance: tokenInfo.allowance.toString(),
-              minAllowance: token.minAllowance.toString(),
+              minAllowance: token.min_allowance.toString(),
               success: false,
               error: `Failed to update token balance: ${error.message}`,
               allowanceUpdated,
@@ -316,7 +322,7 @@ export class SettingsService {
             tokenAddress: token.tokenAddress,
             balance: "0",
             allowance: "0",
-            minAllowance: token.minAllowance.toString(),
+            minAllowance: token.min_allowance.toString(),
             success: false,
             error: `Token initialization failed: ${error.message}`,
           });

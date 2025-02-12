@@ -10,7 +10,7 @@ import {
 import { DexRouterService } from "../../dex-router/dex-router.service";
 import { LoggerService } from "../../logger/logger.service";
 import { SettingsService } from "../../settings/settings.service";
-import { CreateOrderDto, NetworkConfig, Wallet } from "./dto/create-order.dto";
+import { CreateOrderDto, NetworkConfig } from "./dto/create-order.dto";
 import { Initialize } from "src/entities/initialize.entity";
 import { EVMSwapParams } from "src/blockchain/evm/providers/okx";
 import { TokenBalance } from "src/entities/token-balance.entity";
@@ -36,7 +36,7 @@ export class DDService implements OnModuleInit {
 
   async onModuleInit() {
     try {
-      // await this.initializeFromLastConfig();
+      await this.initializeFromLastConfig();
     } catch (error) {
       await this.logger.log(
         `Failed to initialize from last config: ${error.message}`,
@@ -54,22 +54,13 @@ export class DDService implements OnModuleInit {
     });
 
     if (!lastInitialize) {
-      await this.logger.log(
-        "No initialization config found in database",
-        "error"
-      );
-      return;
+      throw new Error("No initialization config found in database");
     }
 
     await this.logger.log("Initializing service with last saved configuration");
 
     try {
-      const result = await this.settingsService.initialize(
-        lastInitialize.params
-      );
-      await this.logger.log(
-        `Service initialized successfully: ${JSON.stringify(result)}`
-      );
+      await this.settingsService.initialize(lastInitialize.params);
     } catch (error) {
       throw new Error(`Initialization failed: ${error.message}`);
     }
@@ -177,19 +168,20 @@ export class DDService implements OnModuleInit {
   private async executeTransaction(
     params: SolanaSwapParams | EVMSwapParams,
     networkName: string,
-    wallet: Wallet,
+    privateKey: string,
+    address: string,
     retries = this.MAX_RETRIES
   ): Promise<any> {
     const execute = async () => {
       if (networkName === "solana") {
         return this.solanaService.executeSwap({
           ...(params as SolanaSwapParams),
-          privateKey: wallet.key,
+          privateKey: privateKey,
         });
       } else {
         return this.evmService.executeSwap({
           ...(params as EVMSwapParams),
-          privateKey: wallet.key,
+          privateKey: privateKey,
         });
       }
     };
@@ -205,7 +197,8 @@ export class DDService implements OnModuleInit {
         return this.executeTransaction(
           params,
           networkName,
-          wallet,
+          privateKey,
+          address,
           retries - 1
         );
       }
@@ -247,24 +240,23 @@ export class DDService implements OnModuleInit {
 
       if (
         Number(network0TokenBalance.balance) <
-        params.config.Amounts_In[0].amount * 10 ** network0TokenBalance.decimals
+        Number(params.spread_entry.from_network_amount_in_tokens)
       ) {
         throw new Error(
           `Insufficient balance for ${params.config.Network0.swapParams.fromToken}
-          ${network0TokenBalance.balance} < ${params.config.Amounts_In[0].amount * 10 ** network0TokenBalance.decimals}
+          ${network0TokenBalance.balance} < ${params.spread_entry.from_network_amount_in_tokens}
           chain: ${params.config.Network0.NetworkName}`
         );
       }
 
       if (
         Number(network0TokenBalance.currentAllowance) <
-          params.config.Amounts_In[0].amount *
-            10 ** network0TokenBalance.decimals &&
+          Number(params.spread_entry.from_network_amount_in_tokens) &&
         network0TokenBalance.chainId !== "101"
       ) {
         throw new Error(
           `Insufficient allowance for ${params.config.Network0.swapParams.fromToken}
-          ${network0TokenBalance.currentAllowance} < ${params.config.Amounts_In[0].amount * 10 ** network0TokenBalance.decimals}
+          ${network0TokenBalance.currentAllowance} < ${params.spread_entry.from_network_amount_in_tokens}
           chain: ${params.config.Network0.NetworkName}`
         );
       }
@@ -284,24 +276,23 @@ export class DDService implements OnModuleInit {
 
       if (
         Number(network1TokenBalance.balance) <
-        params.config.Amounts_In[1].amount * 10 ** network1TokenBalance.decimals
+        Number(params.spread_entry.from_network_amount_in_tokens)
       ) {
         throw new Error(
           `Insufficient balance for ${params.config.Network1.swapParams.fromToken}
-          ${network1TokenBalance.balance} < ${params.config.Amounts_In[1].amount * 10 ** network1TokenBalance.decimals}
+          ${network1TokenBalance.balance} < ${params.spread_entry.from_network_amount_in_tokens}
           chain: ${params.config.Network1.NetworkName}`
         );
       }
 
       if (
         Number(network1TokenBalance.currentAllowance) <
-          params.config.Amounts_In[1].amount *
-            10 ** network1TokenBalance.decimals &&
+          Number(params.spread_entry.from_network_amount_in_tokens) &&
         network1TokenBalance.chainId !== "101"
       ) {
         throw new Error(
           `Insufficient allowance for ${params.config.Network1.swapParams.fromToken}
-          ${network1TokenBalance.currentAllowance} < ${params.config.Amounts_In[1].amount * 10 ** network1TokenBalance.decimals}
+          ${network1TokenBalance.currentAllowance} < ${params.spread_entry.from_network_amount_in_tokens}
           chain: ${params.config.Network1.NetworkName}`
         );
       }
@@ -311,16 +302,19 @@ export class DDService implements OnModuleInit {
       // await this.logger.log(`Routes: ${JSON.stringify(routes)}`);
 
       // Second phase: Execute transactions (retried separately)
+      
       const [network0Tx] = await Promise.all([
         this.executeTransaction(
           params.config.Network0.swapParams,
           params.config.Network0.NetworkName,
-          params.config.Network0.wallet
+          params.config.Network0.wallet.key,
+          params.config.Network0.wallet.address
         ),
         this.executeTransaction(
           params.config.Network1.swapParams,
           params.config.Network1.NetworkName,
-          params.config.Network1.wallet
+          params.config.Network1.wallet.key,
+          params.config.Network1.wallet.address
         ),
       ]);
 

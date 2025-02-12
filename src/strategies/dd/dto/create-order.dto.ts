@@ -12,19 +12,6 @@ import { EVMSwapParams } from "src/blockchain/evm/providers/okx";
 import { SolanaSwapParams } from "src/blockchain/solana/solana.service";
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-/**
- * New Wallet class added to include wallet details.
- */
-export class Wallet {
-  @ApiProperty({ description: 'Wallet address' })
-  @IsString()
-  address: string;
-
-  @ApiProperty({ description: 'Wallet key' })
-  @IsString()
-  key: string;
-}
-
 export class AmountIn {
   @ApiProperty({ description: 'Amount to be traded' })
   @IsNumber()
@@ -36,6 +23,15 @@ export class AmountIn {
   AlertLevelUSD?: number;
 }
 
+export class Wallet {
+  @ApiProperty({ description: 'Private key' })
+  @IsString()
+  key: string;
+
+  @ApiProperty({ description: 'Address' })
+  @IsString()
+  address: string;
+}
 export class NetworkConfig {
   @ApiProperty({ description: 'Name of the network (e.g., "solana", "ethereum")' })
   @IsString()
@@ -98,9 +94,14 @@ export class NetworkConfig {
   @ApiProperty({ description: 'Swap parameters for the network' })
   swapParams: SolanaSwapParams | EVMSwapParams;
 
-  @ApiProperty({ description: 'Wallet information for the network' })
-  @ValidateNested()
-  @Type(() => Wallet)
+  // @ApiProperty({ description: 'Private key for the network' })
+  // @IsString()
+  // privateKey: string;
+
+  // @ApiProperty({ description: 'Address for the network' })
+  // @IsString()
+  // address: string;
+
   wallet: Wallet;
 }
 

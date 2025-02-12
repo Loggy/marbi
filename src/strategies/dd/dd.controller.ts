@@ -44,33 +44,6 @@ export class DDController {
   @ApiResponse({ status: 400, description: "Invalid input" })
   @ApiResponse({ status: 500, description: "Internal server error" })
   async createOrder(@Body() params: CreateOrderDto) {
-    const defaultPrivateKeyBytes = bs58.decode(process.env.SOLANA_PRIVATE_KEY);
-    const wallet = new Wallet(Keypair.fromSecretKey(defaultPrivateKeyBytes));
-    const solanaWalletAddress = wallet.publicKey.toBase58();
-    if (params.config.Network0.NetworkName === "solana") {
-      params.config.Network0.wallet = {
-        key: process.env.SOLANA_PRIVATE_KEY,
-        address: solanaWalletAddress,
-      };
-    } else {
-      params.config.Network0.wallet = {
-        key: process.env.EVM_PRIVATE_KEY,
-        address: privateKeyToAddress(process.env.EVM_PRIVATE_KEY as Address),
-      };
-    }
-
-    if (params.config.Network1.NetworkName === "solana") {
-      params.config.Network1.wallet = {
-        key: process.env.SOLANA_PRIVATE_KEY,
-        address: solanaWalletAddress,
-      };
-    } else {
-      params.config.Network1.wallet = {
-        key: process.env.EVM_PRIVATE_KEY,
-        address: privateKeyToAddress(process.env.EVM_PRIVATE_KEY as Address),
-      };
-    }
-
     const fromNetworkName = params.spread_entry.from_network_name;
     const toNetworkName = params.spread_entry.to_network_name;
 

@@ -7,6 +7,8 @@ import {
   type PublicActions,
   erc20Abi,
   Address,
+  createPublicClient,
+  PublicClient,
 } from "viem";
 import { LoggerService } from "../../logger/logger.service";
 import { privateKeyToAccount } from "viem/accounts";
@@ -27,7 +29,6 @@ const createViemClient = (chain: Chain, rpcUrl: string) => {
   return createWalletClient({
     chain: chain,
     transport,
-    account: privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`),
   }).extend(publicActions);
 };
 
@@ -40,7 +41,7 @@ export const EVM_SPENDER_ADDRESSES = OKX_SPENDER_ADDRESSES;
 
 const CHAIN_CLIENTS: ChainClients = {
   "1": createViemClient(mainnet, process.env.MAINNET_RPC_URL as string),
-  "8453": createViemClient(base, process.env.BASE_RPC_URL as string),
+  "8453": createViemClient(base, base.rpcUrls.default.http[0] as string),
   "42161": createViemClient(arbitrum, process.env.ARBITRUM_RPC_URL as string),
   "56": createViemClient(bsc, process.env.BSC_RPC_URL as string),
 };
@@ -88,12 +89,12 @@ export class EVMService {
     privateKey?: string
   ): WalletClientConfig {
     try {
-      const chainIdStr = chainId.toString();
+      const chainIdStr = chainId.toString(); 
       if (chainIdStr in CHAIN_CLIENTS) {
         if (privateKey) {
           // Create a new client with the provided private key
           const baseClient = CHAIN_CLIENTS[chainIdStr as keyof ChainClients];
-          return createWalletClient({
+          return createWalletClient({ 
             chain: baseClient.chain,
             transport: http(baseClient.transport.url), // Create new transport with the same URL
             account: privateKeyToAccount(privateKey as `0x${string}`),
@@ -284,7 +285,7 @@ export class EVMService {
       }
 
       const client = this.getClient(chainId, privateKey);
-
+ 
       this.logger.log(
         `Setting allowance for ${tokenAddress} to ${allowance} on chain ${chainId}`
       );
@@ -298,7 +299,7 @@ export class EVMService {
         account: client.account,
       });
       await client.waitForTransactionReceipt({ hash });
-      return hash;
+      return hash; 
     } catch (error) {
       await this.logger.log(
         `Failed to set allowance: ${error.message}`,
