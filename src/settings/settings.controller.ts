@@ -63,7 +63,7 @@ export class SettingsController {
       },
     },
   })
-  async initialize(@Body() params: InitializeDto) {
+  async initialize(@Body() params: any) {
     // params.evmSettings.privateKey = process.env.EVM_PRIVATE_KEY;
     // params.evmSettings.walletAddress = privateKeyToAddress(
     //   process.env.EVM_PRIVATE_KEY as Address
@@ -76,7 +76,8 @@ export class SettingsController {
     // params.solanaSettings.walletAddress = solanaWalletAddress;
 
     await this.settingsService.saveInitialize(params);
-    const results = await this.settingsService.initialize(params);
-    return results;
+    // const results = await this.settingsService.initialize(params);
+    // return results;
+    return 'pipisk'
   }
 }

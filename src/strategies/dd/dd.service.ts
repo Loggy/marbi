@@ -171,7 +171,7 @@ export class DDService implements OnModuleInit {
     privateKey: string,
     address: string,
     retries = this.MAX_RETRIES
-  ): Promise<any> {
+  ): Promise<{ txid: string; fromTokenBalanceChange: bigint; toTokenBalanceChange: bigint }> {
     const execute = async () => {
       if (networkName === "solana") {
         return this.solanaService.executeSwap({
@@ -303,7 +303,7 @@ export class DDService implements OnModuleInit {
 
       // Second phase: Execute transactions (retried separately)
       
-      const [network0Tx] = await Promise.all([
+      const [network0TxResult, network1TxResult] = await Promise.all([
         this.executeTransaction(
           params.config.Network0.swapParams,
           params.config.Network0.NetworkName,
@@ -318,20 +318,23 @@ export class DDService implements OnModuleInit {
         ),
       ]);
 
-      // // Update token balances after successful execution
-      // await this.updateAllTokenBalances(params);
-
-      // order.status = "COMPLETED";
-      // order.result = {
-      //   network0: {
-      //     route: routes.network0,
-      //     transaction: network0Tx,
-      //   },
-      //   network1: {
-      //     route: routes.network1,
-      //     transaction: network1Tx,
-      //   },
-      // };
+      order.status = "COMPLETED";
+      order.result = {
+        network0: {
+          txid: network0TxResult.txid,
+          fromTokenBalanceChange: network0TxResult.fromTokenBalanceChange,
+          toTokenBalanceChange: network0TxResult.toTokenBalanceChange,
+        },
+        network1: {
+          txid: network1TxResult.txid,
+          fromTokenBalanceChange: network1TxResult.fromTokenBalanceChange,
+          toTokenBalanceChange: network1TxResult.toTokenBalanceChange,
+        },
+      };
+      this.logger.log(`Order completed:
+        network0Result: ${JSON.stringify(network0TxResult)}
+        network1Result: ${JSON.stringify(network1TxResult)}`, "info");
+        
     } catch (error) {
       order.status = "FAILED";
       order.result = {

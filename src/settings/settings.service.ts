@@ -76,7 +76,7 @@ export class SettingsService {
   }
 
   async saveInitialize(params: InitializeDto) {
-    const initialize = this.initializeRepository.create({
+    const initialize = await this.initializeRepository.create({
       params,
     });
     await this.initializeRepository.save(initialize);
@@ -275,6 +275,7 @@ export class SettingsService {
               }
               tokenInfo.allowance = BigInt(token.set_allowance);
               allowanceUpdated = true;
+              this.logger.log(`Updated allowance for ${token.tokenAddress}`, 'info');
             } catch (error) {
               tokenResults.push({
                 tokenAddress: token.tokenAddress,

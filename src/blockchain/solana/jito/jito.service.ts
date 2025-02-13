@@ -49,7 +49,7 @@ export class JitoService implements OnModuleInit {
       const { data } = await this.axiosInstance.get(this.TIP_FLOOR_URL);
       if (Array.isArray(data)) {
         this.tipFloorData = data[0] as TipFloorData;
-        this.logger.log(`Updated Jito tip floor data. Latest time: ${this.tipFloorData.time} ${this.tipFloorData[this.base_percentile]}`, 'info');
+        this.logger.log(`Updated Jito tip floor data. Latest time: ${this.tipFloorData.time} ${this.base_percentile} ${this.tipFloorData[this.base_percentile]}`, 'info');
       } else {
         throw new Error('Invalid return data format');
       }

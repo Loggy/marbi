@@ -181,7 +181,14 @@ export class EVMService {
 
   async executeSwap(
     params: EVMSwapParams & { privateKey?: string }
-  ): Promise<any> {
+  ) {
+
+    const swapResult = {
+      txid: "",
+      fromTokenBalanceChange: 0n,
+      toTokenBalanceChange: 0n,
+    };
+
     this.logger.log(`Executing EVM swap: ${JSON.stringify(params)}`);
 
     const client = this.getClient(params.chainId, params.privateKey);
@@ -191,6 +198,8 @@ export class EVMService {
       client,
       logger: this.logger,
     });
+
+    swapResult.txid = receipt.transactionHash;
 
     if (receipt.status === "success") {
       const tokensInfo = await this.getTokensInfo(
@@ -206,6 +215,11 @@ export class EVMService {
           },
         });
         if (tokenBalance) {
+          if (tokenInfo.tokenAddress === params.fromToken) {
+            swapResult.fromTokenBalanceChange = tokenInfo.balance - BigInt(tokenBalance.balance);
+          } else {
+            swapResult.toTokenBalanceChange = tokenInfo.balance - BigInt(tokenBalance.balance);
+          }
           tokenBalance.balance = tokenInfo.balance.toString();
           tokenBalance.currentAllowance = tokenInfo.allowance.toString();
           this.logger.log(
@@ -214,6 +228,8 @@ export class EVMService {
           await this.tokenBalanceRepository.save(tokenBalance);
         }
       });
+
+      return swapResult;
     }
   }
 

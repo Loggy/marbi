@@ -144,16 +144,6 @@
       "post": {
         "operationId": "SettingsController_initialize",
         "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/InitializeDto"
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "Settings initialized successfully",
@@ -523,10 +513,6 @@
           "config",
           "spread_entry"
         ]
-      },
-      "InitializeDto": {
-        "type": "object",
-        "properties": {}
       }
     }
   }

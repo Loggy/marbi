@@ -5,6 +5,7 @@ import {
   Keypair,
   VersionedTransaction,
   LAMPORTS_PER_SOL,
+  ParsedTransactionWithMeta,
 } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID, AccountLayout, MintLayout } from "@solana/spl-token";
 import { LoggerService } from "../../logger/logger.service";
@@ -31,6 +32,13 @@ export type SolanaSwapParams = {
   jitoTipLamports?: number;
   privateKey?: string;
 };
+
+export interface TokenBalanceChange {
+  mint: string;
+  preBalance: bigint;
+  postBalance: bigint;
+  difference: bigint;
+}
 
 @Injectable()
 export class SolanaService {
@@ -198,9 +206,9 @@ export class SolanaService {
   async executeSwap(params: SolanaSwapParams) {
     const wallet = this.getWallet(params.privateKey);
     const swapResult = {
-      // amountBaught: 0n,
       txid: "",
-      solscanLink: "",
+      fromTokenBalanceChange: 0n,
+      toTokenBalanceChange: 0n,
     };
 
     const slippageBps = Number(params.slippage) * 100;
@@ -283,13 +291,7 @@ export class SolanaService {
       ? await this.signAndSendTransactionJito(transaction, params.privateKey)
       : await this.signAndSendTransaction(transaction, params.privateKey);
 
-    // todo calculate tokens received
-
-    // swapResult.amountBaught = BigInt(tokensReceived);
     swapResult.txid = txid;
-    swapResult.solscanLink = `https://solscan.io/tx/${txid}`;
-
-    // console.log("Tokens received: ", tokensReceived);
 
     const fromTokenNewBalance = await this.getTokenBalance(
       params.fromToken,
@@ -317,11 +319,19 @@ export class SolanaService {
 
     if (fromTokenBalance) {
       fromTokenBalance.balance = fromTokenNewBalance.toString();
+
+      const fromTokenBalanceChange = BigInt(fromTokenNewBalance) - BigInt(fromTokenBalance.balance);
+      swapResult.fromTokenBalanceChange = fromTokenBalanceChange;
+
       await this.tokenBalanceRepository.save(fromTokenBalance);
     }
 
     if (toTokenBalance) {
       toTokenBalance.balance = toTokenNewBalance.toString();
+      
+      const toTokenBalanceChange = BigInt(toTokenNewBalance) - BigInt(toTokenBalance.balance);
+      swapResult.toTokenBalanceChange = toTokenBalanceChange;
+
       await this.tokenBalanceRepository.save(toTokenBalance);
     }
 
