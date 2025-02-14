@@ -85,6 +85,20 @@
         ]
       }
     },
+    "/dd/test": {
+      "post": {
+        "operationId": "DDController_test",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "dd"
+        ]
+      }
+    },
     "/settings/balance": {
       "get": {
         "operationId": "SettingsController_getBalance",
@@ -144,6 +158,16 @@
       "post": {
         "operationId": "SettingsController_initialize",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InitializeDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Settings initialized successfully",
@@ -513,6 +537,10 @@
           "config",
           "spread_entry"
         ]
+      },
+      "InitializeDto": {
+        "type": "object",
+        "properties": {}
       }
     }
   }

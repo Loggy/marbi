@@ -15,6 +15,21 @@ import { Initialize } from "src/entities/initialize.entity";
 import { EVMSwapParams } from "src/blockchain/evm/providers/okx";
 import { TokenBalance } from "src/entities/token-balance.entity";
 import { AppStateService } from "../../settings/app-state.service";
+
+const NETWORK_TO_EXPLORER = {
+  "solana": "https://solscan.io/tx/",
+  "ethereum": "https://etherscan.io/tx/",
+  "arbitrum": "https://arbiscan.io/tx/",
+  "base": "https://basescan.org/tx/",
+  "polygon": "https://polygonscan.com/tx/",
+  "avalanche": "https://snowtrace.io/tx/",
+  "optimism": "https://optimistic.etherscan.io/tx/",
+  "gnosis": "https://gnosisscan.io/tx/",
+  "fantom": "https://ftmscan.com/tx/", 
+  "bsc": "https://bscscan.com/tx/",
+}
+
+
 @Injectable()
 export class DDService implements OnModuleInit {
   private readonly MAX_RETRIES = 5;
@@ -52,7 +67,7 @@ export class DDService implements OnModuleInit {
       },
       take: 1,
     });
-
+ 
     if (!lastInitialize) {
       throw new Error("No initialization config found in database");
     }
@@ -171,7 +186,7 @@ export class DDService implements OnModuleInit {
     privateKey: string,
     address: string,
     retries = this.MAX_RETRIES
-  ): Promise<{ txid: string; fromTokenBalanceChange: bigint; toTokenBalanceChange: bigint }> {
+  ): Promise<{ txid: string; fromTokenBalanceChange: bigint; toTokenBalanceChange: bigint; endTimestamp: number }> {
     const execute = async () => {
       if (networkName === "solana") {
         return this.solanaService.executeSwap({
@@ -209,6 +224,9 @@ export class DDService implements OnModuleInit {
   }
 
   async createOrder(params: CreateOrderDto): Promise<Order> {
+    const startTime = new Date();
+    const startTimestamp = performance.now();
+    
     // Check if app is initialized
     if (!this.appStateService.getIsInitialized()) {
       this.logger.log("App is not initialized yet", "error");
@@ -321,20 +339,41 @@ export class DDService implements OnModuleInit {
       order.status = "COMPLETED";
       order.result = {
         network0: {
+          fromToken: params.config.Network0.swapParams.fromToken,
+          toToken: params.config.Network0.swapParams.toToken,
+          networkName: params.config.Network0.NetworkName,
           txid: network0TxResult.txid,
-          fromTokenBalanceChange: network0TxResult.fromTokenBalanceChange,
-          toTokenBalanceChange: network0TxResult.toTokenBalanceChange,
+          fromTokenBalanceChange: network0TxResult.fromTokenBalanceChange.toString(),
+          toTokenBalanceChange: network0TxResult.toTokenBalanceChange.toString(),
+          time: network0TxResult.endTimestamp - startTimestamp,
         },
         network1: {
+          fromToken: params.config.Network1.swapParams.fromToken,
+          toToken: params.config.Network1.swapParams.toToken,
+          networkName: params.config.Network1.NetworkName,
           txid: network1TxResult.txid,
-          fromTokenBalanceChange: network1TxResult.fromTokenBalanceChange,
-          toTokenBalanceChange: network1TxResult.toTokenBalanceChange,
+          fromTokenBalanceChange: network1TxResult.fromTokenBalanceChange.toString(),
+          toTokenBalanceChange: network1TxResult.toTokenBalanceChange.toString(),
+          time: network1TxResult.endTimestamp - startTimestamp,
         },
       };
+
+      const startTimeUTC = startTime.toUTCString();
+
+      const network0Message = this.generateMessageForTelegram(order.result.network0);
+      const network1Message = this.generateMessageForTelegram(order.result.network1);
+
+      const message = `<b>${params.config.Ticker}</b> ${startTimeUTC}
+${network0Message}
+${network1Message}`;
+      
+
       this.logger.log(`Order completed:
-        network0Result: ${JSON.stringify(network0TxResult)}
-        network1Result: ${JSON.stringify(network1TxResult)}`, "info");
-        
+        network0Result: ${JSON.stringify(order.result.network0)}
+        network1Result: ${JSON.stringify(order.result.network1)}`);
+
+        await this.logger.telegramNotify(message, 'HTML');
+
     } catch (error) {
       order.status = "FAILED";
       order.result = {
@@ -344,5 +383,20 @@ export class DDService implements OnModuleInit {
     }
 
     return await this.orderRepository.save(order);
+  }
+
+  private generateMessageForTelegram(result: any): string {
+    const message = `
+${result.networkName} <a href="${NETWORK_TO_EXPLORER[result.networkName]}${result.txid}">Explorer</a>
+
+txId: <code>${result.txid}</code>
+from: <code>${result.fromToken}</code>
+change: ${result.fromTokenBalanceChange}
+to: <code>${result.toToken}</code>
+change: ${result.toTokenBalanceChange}
+time: ${(result.time / 1000).toFixed(2)}s
+`;
+
+    return message;
   }
 }

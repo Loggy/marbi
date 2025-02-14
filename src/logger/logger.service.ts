@@ -1,12 +1,16 @@
 import { Injectable } from "@nestjs/common";
-import { Telegraf } from "telegraf";
+import { Bot } from 'grammy';
 
 @Injectable()
 export class LoggerService {
-  private telegram: Telegraf;
+  private telegram: Bot;
+  private channelId: number;
+  private topicId: number;
 
   constructor() {
-    this.telegram = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
+    this.telegram = new Bot(process.env.TELEGRAM_BOT_TOKEN);
+    this.channelId = parseInt(process.env.TELEGRAM_CHANNEL_ID);
+    this.topicId = parseInt(process.env.TELEGRAM_TOPIC_ID);
   }
 
   async log(
@@ -30,12 +34,11 @@ export class LoggerService {
 
   async telegramNotify(
     message: string,
-    chatId: string,
-    topicId?: number
+    parse_mode?: 'MarkdownV2' | 'Markdown' | 'HTML'
   ): Promise<void> {
     try {
-      const options = topicId ? { message_thread_id: topicId } : {};
-      await this.telegram.telegram.sendMessage(chatId, message, options);
+      const options = this.topicId ? { message_thread_id: this.topicId } : {};
+      await this.telegram.api.sendMessage(this.channelId, message, {...options, parse_mode });
     } catch (error) {
       await this.log(
         `Failed to send telegram notification: ${error.message}`,

@@ -6,6 +6,7 @@ import {
   VersionedTransaction,
   LAMPORTS_PER_SOL,
   ParsedTransactionWithMeta,
+  TransactionError,
 } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID, AccountLayout, MintLayout } from "@solana/spl-token";
 import { LoggerService } from "../../logger/logger.service";
@@ -29,8 +30,8 @@ export type SolanaSwapParams = {
   toToken: string;
   amount: string;
   slippage?: string;
-  jitoTipLamports?: number;
   privateKey?: string;
+  jitoTipLamports?: number;
 };
 
 export interface TokenBalanceChange {
@@ -166,14 +167,14 @@ export class SolanaService {
     this.logger.log(`Transaction sent: ${txid}`);
     this.logger.log("Waiting for transaction to confirm...");
 
-    await this.client.confirmTransaction({
+    const confirmation = await this.client.confirmTransaction({
       blockhash: latestBlockHash.blockhash,
       lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
       signature: txid,
     });
     this.logger.log(`Transaction confirmed: ${txid}`);
 
-    return txid;
+    return { txid, confirmation };
   }
 
   private async signAndSendTransactionJito(transaction: VersionedTransaction, privateKey?: string) {
@@ -193,30 +194,38 @@ export class SolanaService {
     this.logger.log(`Transaction sent to Jito: ${txid}`);
     this.logger.log("Waiting for transaction to confirm...");
 
-    await this.client.confirmTransaction({
+    const confirmation = await this.client.confirmTransaction({
       blockhash: latestBlockHash.blockhash,
       lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
       signature: txid,
     });
     this.logger.log(`Transaction confirmed on Jito: ${txid}`);
 
-    return txid;
+    return { txid, confirmation };
   }
 
   async executeSwap(params: SolanaSwapParams) {
     const wallet = this.getWallet(params.privateKey);
-    const swapResult = {
+    const swapResult: {
+      txid: string;
+      fromTokenBalanceChange: bigint;
+      toTokenBalanceChange: bigint;
+      endTimestamp: number;
+      error: TransactionError;
+    } = {
       txid: "",
       fromTokenBalanceChange: 0n,
       toTokenBalanceChange: 0n,
+      endTimestamp: 0,
+      error: null,
     };
 
-    const slippageBps = Number(params.slippage) * 100;
+    const slippageBps = Number(params.slippage || '0.5') * 100;
 
     const withJito = true;
 
     if (withJito) {
-      const tipFloorData = this.jitoService.getLatestTipFloorData();
+      const tipFloorData = await this.jitoService.fetchLatestTipFloorData();
       if (tipFloorData) {
         params.jitoTipLamports = Math.floor(tipFloorData * LAMPORTS_PER_SOL);
       }
@@ -287,11 +296,13 @@ export class SolanaService {
     var transaction = VersionedTransaction.deserialize(swapTransactionBuf);
 
     // Use Jito client if tip is provided, otherwise use regular client
-    const txid = withJito
+    const { txid, confirmation } = withJito
       ? await this.signAndSendTransactionJito(transaction, params.privateKey)
       : await this.signAndSendTransaction(transaction, params.privateKey);
 
+    swapResult.endTimestamp = performance.now();
     swapResult.txid = txid;
+    swapResult.error = confirmation.value.err;
 
     const fromTokenNewBalance = await this.getTokenBalance(
       params.fromToken,
@@ -318,25 +329,28 @@ export class SolanaService {
     });
 
     if (fromTokenBalance) {
-      fromTokenBalance.balance = fromTokenNewBalance.toString();
-
       const fromTokenBalanceChange = BigInt(fromTokenNewBalance) - BigInt(fromTokenBalance.balance);
       swapResult.fromTokenBalanceChange = fromTokenBalanceChange;
 
+      fromTokenBalance.balance = fromTokenNewBalance.toString();
       await this.tokenBalanceRepository.save(fromTokenBalance);
     }
 
     if (toTokenBalance) {
-      toTokenBalance.balance = toTokenNewBalance.toString();
-      
       const toTokenBalanceChange = BigInt(toTokenNewBalance) - BigInt(toTokenBalance.balance);
       swapResult.toTokenBalanceChange = toTokenBalanceChange;
 
+      toTokenBalance.balance = toTokenNewBalance.toString();
       await this.tokenBalanceRepository.save(toTokenBalance);
     }
 
     this.logger.log(
-      `Updated token balances: ${JSON.stringify(fromTokenBalance)} ${JSON.stringify(toTokenBalance)}`
+      `Updated token balances: 
+      balance fromToken: ${fromTokenBalance?.balance}
+      balance change fromToken: ${swapResult.fromTokenBalanceChange}
+      balance toToken: ${toTokenBalance?.balance}
+      balance change toToken: ${swapResult.toTokenBalanceChange}
+      error: ${swapResult.error}`
     );
 
     return swapResult;

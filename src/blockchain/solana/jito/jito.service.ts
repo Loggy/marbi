@@ -50,6 +50,7 @@ export class JitoService implements OnModuleInit {
       if (Array.isArray(data)) {
         this.tipFloorData = data[0] as TipFloorData;
         this.logger.log(`Updated Jito tip floor data. Latest time: ${this.tipFloorData.time} ${this.base_percentile} ${this.tipFloorData[this.base_percentile]}`, 'info');
+        return this.tipFloorData;
       } else {
         throw new Error('Invalid return data format');
       }
@@ -64,6 +65,11 @@ export class JitoService implements OnModuleInit {
       }
     }
   }
+
+  public async fetchLatestTipFloorData(): Promise<number> {
+    const tipFloorData = await this.fetchTipFloorData();
+    return tipFloorData[this.base_percentile];
+  } 
 
   public getLatestTipFloorData(): number | null {
     return this.tipFloorData[this.base_percentile] || null;

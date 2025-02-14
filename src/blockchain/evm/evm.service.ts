@@ -182,11 +182,11 @@ export class EVMService {
   async executeSwap(
     params: EVMSwapParams & { privateKey?: string }
   ) {
-
     const swapResult = {
       txid: "",
       fromTokenBalanceChange: 0n,
       toTokenBalanceChange: 0n,
+      endTimestamp: 0,
     };
 
     this.logger.log(`Executing EVM swap: ${JSON.stringify(params)}`);
@@ -200,7 +200,8 @@ export class EVMService {
     });
 
     swapResult.txid = receipt.transactionHash;
-
+    swapResult.endTimestamp = performance.now();
+    
     if (receipt.status === "success") {
       const tokensInfo = await this.getTokensInfo(
         client.account.address,

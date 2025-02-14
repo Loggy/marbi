@@ -76,10 +76,7 @@ export class SettingsService {
   }
 
   async saveInitialize(params: InitializeDto) {
-    const initialize = await this.initializeRepository.create({
-      params,
-    });
-    await this.initializeRepository.save(initialize);
+    await this.initializeRepository.save({params});
   }
 
   async initialize(params: InitializeDto) {
