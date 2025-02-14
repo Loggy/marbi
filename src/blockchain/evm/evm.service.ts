@@ -200,7 +200,14 @@ export class EVMService {
     });
 
     swapResult.txid = receipt.transactionHash;
-    swapResult.endTimestamp = performance.now();
+
+    // Get block timestamp from the transaction
+    const block = await client.getBlock({
+      blockHash: receipt.blockHash,
+      includeTransactions: false,
+    });
+    
+    swapResult.endTimestamp = Number(block.timestamp) * 1000; // Convert seconds to milliseconds
     
     if (receipt.status === "success") {
       const tokensInfo = await this.getTokensInfo(

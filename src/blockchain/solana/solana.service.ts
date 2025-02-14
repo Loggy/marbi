@@ -255,7 +255,7 @@ export class SolanaService {
     let prioritizationFeeLamports: any = {
       priorityLevelWithMaxLamports: {
         maxLamports: 10000000,
-        priorityLevel: "veryHigh", // medium If you want to land transaction fast, set this to use `veryHigh`. You will pay on average higher priority fee.
+        priorityLevel: "medium", // medium If you want to land transaction fast, set this to use `veryHigh`. You will pay on average higher priority fee.
       },
     };
 
@@ -300,7 +300,12 @@ export class SolanaService {
       ? await this.signAndSendTransactionJito(transaction, params.privateKey)
       : await this.signAndSendTransaction(transaction, params.privateKey);
 
-    swapResult.endTimestamp = performance.now();
+    // Fetch transaction details to get block time
+    const txDetails = await this.client.getParsedTransaction(txid, {
+      maxSupportedTransactionVersion: 0,
+    });
+
+    swapResult.endTimestamp = (txDetails.blockTime || 0) * 1000;
     swapResult.txid = txid;
     swapResult.error = confirmation.value.err;
 

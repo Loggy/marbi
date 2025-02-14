@@ -225,7 +225,6 @@ export class DDService implements OnModuleInit {
 
   async createOrder(params: CreateOrderDto): Promise<Order> {
     const startTime = new Date();
-    const startTimestamp = performance.now();
     
     // Check if app is initialized
     if (!this.appStateService.getIsInitialized()) {
@@ -336,6 +335,31 @@ export class DDService implements OnModuleInit {
         ),
       ]);
 
+
+      const network0FromToken = await this.tokenBalanceRepository.findOne({
+        where: {
+          address: params.config.Network0.swapParams.fromToken,
+        },
+      });
+
+      const network0ToToken = await this.tokenBalanceRepository.findOne({ 
+        where: {
+          address: params.config.Network0.swapParams.toToken,
+        },
+      });
+
+      const network1FromToken = await this.tokenBalanceRepository.findOne({
+        where: {
+          address: params.config.Network1.swapParams.fromToken,
+        },
+      });
+
+      const network1ToToken = await this.tokenBalanceRepository.findOne({
+        where: {
+          address: params.config.Network1.swapParams.toToken,
+        },
+      });
+      
       order.status = "COMPLETED";
       order.result = {
         network0: {
@@ -343,18 +367,18 @@ export class DDService implements OnModuleInit {
           toToken: params.config.Network0.swapParams.toToken,
           networkName: params.config.Network0.NetworkName,
           txid: network0TxResult.txid,
-          fromTokenBalanceChange: network0TxResult.fromTokenBalanceChange.toString(),
-          toTokenBalanceChange: network0TxResult.toTokenBalanceChange.toString(),
-          time: network0TxResult.endTimestamp - startTimestamp,
+          fromTokenBalanceChange: (Number(network0TxResult.fromTokenBalanceChange) / 10 ** network0FromToken.decimals).toString(),
+          toTokenBalanceChange: (Number(network0TxResult.toTokenBalanceChange) / 10 ** network0ToToken.decimals).toString(),
+          time: network0TxResult.endTimestamp - startTime.getTime(),
         },
         network1: {
           fromToken: params.config.Network1.swapParams.fromToken,
           toToken: params.config.Network1.swapParams.toToken,
           networkName: params.config.Network1.NetworkName,
           txid: network1TxResult.txid,
-          fromTokenBalanceChange: network1TxResult.fromTokenBalanceChange.toString(),
-          toTokenBalanceChange: network1TxResult.toTokenBalanceChange.toString(),
-          time: network1TxResult.endTimestamp - startTimestamp,
+          fromTokenBalanceChange: (Number(network1TxResult.fromTokenBalanceChange) / 10 ** network1FromToken.decimals).toString(),
+          toTokenBalanceChange: (Number(network1TxResult.toTokenBalanceChange) / 10 ** network1ToToken.decimals).toString(),
+          time: network1TxResult.endTimestamp - startTime.getTime(),
         },
       };
 
