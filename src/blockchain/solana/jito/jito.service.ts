@@ -50,8 +50,7 @@ export class JitoService implements OnModuleInit {
     try {
       const { data } = await this.axiosInstance.get(this.TIP_FLOOR_URL);
       if (Array.isArray(data)) {
-        const jitoTipFloorData = data[0] + this.BASE_TINY_ADDITION_SOL;
-        this.tipFloorData = jitoTipFloorData;
+        this.tipFloorData = data[0] as TipFloorData;
         this.logger.log(`Updated Jito tip floor data. Latest time: ${this.tipFloorData.time} ${this.base_percentile} ${this.tipFloorData[this.base_percentile]}`, 'info');
         return this.tipFloorData;
       } else {
@@ -71,7 +70,7 @@ export class JitoService implements OnModuleInit {
 
   public async fetchLatestTipFloorData(): Promise<number> {
     const tipFloorData = await this.fetchTipFloorData();
-    return tipFloorData[this.base_percentile];
+    return tipFloorData[this.base_percentile] + this.BASE_TINY_ADDITION_SOL;
   } 
 
   public getLatestTipFloorData(): number | null {

@@ -404,6 +404,7 @@ ${network1Message}`;
         error: error.message,
       };
       await this.logger.log(`Order failed: ${error.message}`, "error");
+      await this.logger.telegramNotify(`Order failed: ${error.message}`, 'HTML');
     }
 
     return await this.orderRepository.save(order);
