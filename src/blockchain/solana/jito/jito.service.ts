@@ -19,7 +19,7 @@ export class JitoService implements OnModuleInit {
   private tipFloorData: TipFloorData | null = null;
   private base_percentile = 'landed_tips_75th_percentile';
 
-  private BASE_TINY_ADDITION_SOL_PERCENT = 1.05;
+  private BASE_TINY_ADDITION_SOL_PERCENT = 1.12;
 
   private readonly axiosInstance;
 

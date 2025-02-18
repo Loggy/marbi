@@ -374,7 +374,7 @@ export class DDService implements OnModuleInit {
           txid: network0TxResult.txid,
           fromTokenBalanceChange: (Number(network0TxResult.fromTokenBalanceChange) / 10 ** network0FromToken.decimals).toString(),
           toTokenBalanceChange: (Number(network0TxResult.toTokenBalanceChange) / 10 ** network0ToToken.decimals).toString(),
-          time: network0TxResult.endTimestamp - startTime.getTime(),
+          time: (network0TxResult.endTimestamp - startTime.getTime()) / 1000,
         },
         network1: {
           fromToken: params.config.Network1.swapParams.fromToken,
@@ -383,7 +383,7 @@ export class DDService implements OnModuleInit {
           txid: network1TxResult.txid,
           fromTokenBalanceChange: (Number(network1TxResult.fromTokenBalanceChange) / 10 ** network1FromToken.decimals).toString(),
           toTokenBalanceChange: (Number(network1TxResult.toTokenBalanceChange) / 10 ** network1ToToken.decimals).toString(),
-          time: network1TxResult.endTimestamp - startTime.getTime(),
+          time: (network1TxResult.endTimestamp - startTime.getTime()) / 1000,
         },
       };
 
@@ -408,8 +408,8 @@ ${network1Message}`;
       order.result = {
         error: error.message,
       };
-      await this. logger.log(`Order failed: ${error.message}`, "error");
-      await this.logger.telegramNotify(`Order failed: ${error.message}`);
+      await this.logger.log(`Order failed: ${error.message}`, "error");
+      await this.logger.telegramNotify(`Order failed: ${error.message}`, undefined, 'error');
     }
 
     return await this.orderRepository.save(order);
@@ -424,7 +424,7 @@ from: <code>${result.fromToken}</code>
 change: ${result.fromTokenBalanceChange}
 to: <code>${result.toToken}</code>
 change: ${result.toTokenBalanceChange}
-time: ${(result.time / 1000).toFixed(2)}s
+time: ${result.time.toFixed(2)}s
 `;
 
     return message;
