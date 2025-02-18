@@ -467,11 +467,11 @@
             "description": "Custom HTML for notifications"
           },
           "from_network_amount_in_tokens": {
-            "type": "number",
+            "type": "string",
             "description": "Input token amount on the source network"
           },
           "to_network_amount_in_tokens": {
-            "type": "number",
+            "type": "string",
             "description": "Input token amount on the destination network"
           },
           "last_spread_in_usd": {

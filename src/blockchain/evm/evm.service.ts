@@ -7,8 +7,6 @@ import {
   type PublicActions,
   erc20Abi,
   Address,
-  createPublicClient,
-  PublicClient,
 } from "viem";
 import { LoggerService } from "../../logger/logger.service";
 import { privateKeyToAccount } from "viem/accounts";
@@ -23,6 +21,12 @@ import { EVMSettings, EVMTokenInfo } from "../../settings/dto/initialize.dto";
 import { TokenBalance } from "src/entities/token-balance.entity";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
+
+import { createNonceManager, jsonRpc } from 'viem/nonce'
+
+const nonceManager = createNonceManager({
+  source: jsonRpc()
+})
 
 const createViemClient = (chain: Chain, rpcUrl: string) => {
   const transport = http(rpcUrl);
@@ -42,8 +46,8 @@ export const EVM_SPENDER_ADDRESSES = OKX_SPENDER_ADDRESSES;
 const CHAIN_CLIENTS: ChainClients = {
   "1": createViemClient(mainnet, process.env.MAINNET_RPC_URL as string),
   "8453": createViemClient(base, base.rpcUrls.default.http[0] as string),
-  "42161": createViemClient(arbitrum, process.env.ARBITRUM_RPC_URL as string),
-  "56": createViemClient(bsc, process.env.BSC_RPC_URL as string),
+  "42161": createViemClient(arbitrum, arbitrum.rpcUrls.default.http[0] as string),
+  "56": createViemClient(bsc, bsc.rpcUrls.default.http[0] as string),
 };
 
 const CHAIN_NAME_TO_ID = {
@@ -94,11 +98,13 @@ export class EVMService {
         if (privateKey) {
           // Create a new client with the provided private key
           const baseClient = CHAIN_CLIENTS[chainIdStr as keyof ChainClients];
-          return createWalletClient({ 
+          const account = privateKeyToAccount(privateKey as `0x${string}`, { nonceManager });
+          const walletClient = createWalletClient({ 
             chain: baseClient.chain,
             transport: http(baseClient.transport.url), // Create new transport with the same URL
-            account: privateKeyToAccount(privateKey as `0x${string}`),
+            account: account,
           }).extend(publicActions);
+          return walletClient;
         }
         return CHAIN_CLIENTS[chainIdStr as keyof ChainClients];
       }
@@ -199,6 +205,10 @@ export class EVMService {
       logger: this.logger,
     });
 
+    if ('error' in receipt) {
+      throw new Error(receipt.error);
+    }
+
     swapResult.txid = receipt.transactionHash;
 
     // Get block timestamp from the transaction
@@ -248,6 +258,7 @@ export class EVMService {
   ): Promise<EVMTokenInfo[]> {
     try {
       const client = this.getClient(chainId);
+
       const spenderAddress =
         OKX_SPENDER_ADDRESSES[
           chainId.toString() as keyof typeof OKX_SPENDER_ADDRESSES
@@ -274,6 +285,16 @@ export class EVMService {
       });
 
       const tokenInfos = [];
+
+      // const nativeBalance = await client.getBalance({
+      //   address: walletAddress as `0x${string}`,
+      // });
+
+      // tokenInfos.push({
+      //   tokenAddress: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+      //   balance: nativeBalance,
+      //   allowance: 0n,
+      // });
 
       for (let i = 0; i < results.length; i += 2) {
         const info = {

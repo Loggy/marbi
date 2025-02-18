@@ -1,25 +1,29 @@
 // --------------------- npm package ---------------------
 import * as cryptoJS from "crypto-js";
-import { Address, erc20Abi } from "viem";
-import { privateKeyToAddress } from "viem/accounts";
+import { Address, createWalletClient, erc20Abi, http } from "viem";
 import { WalletClientConfig } from "../../evm.service";
 import { config } from "dotenv";
 import { LoggerService } from "src/logger/logger.service";
+import Bottleneck from "bottleneck";
+
+
 config();
 
 const API_BASE_URL = "https://www.okx.com/api/v5/dex/aggregator";
 
 // gasPrice or GasLimit ratio
-const GAS_PRICE_RATIO = BigInt(15); // *15 to avoid GasPrice too low
+const GAS_LIMIT_RATIO = BigInt(10); // *15 to avoid GasPrice too low
 
 const PASSPHRASE = process.env.OKX_PASSPHRASE;
 const OKX_API_KEY = process.env.OKX_API_KEY;
-const PRIVATE_KEY = process.env.EVM_PRIVATE_KEY;
 const SECRET_KEY = process.env.OKX_SECRET_KEY;
 
 const DEFAULT_SLIPPAGE = "0.03";
 
-const USER_ADDRESS = privateKeyToAddress(PRIVATE_KEY as `0x${string}`);
+const swapQueue = new Bottleneck({
+  maxConcurrent: 1,
+  minTime: 1500, // 1 second
+});
 
 export const OKX_SPENDER_ADDRESSES = {
   "1": "0x40aA958dd87FC8305b97f2BA922CDdCa374bcD7f",
@@ -189,12 +193,14 @@ type SwapParams = {
 };
 
 export async function getSwapData(swapParams: SwapParams) {
-  const apiRequestUrl = getAggregatorRequestUrl("/swap", swapParams);
-  const res = await fetch(apiRequestUrl, {
-    method: "get",
-    headers: getHeaderParams(apiRequestUrl),
+  return swapQueue.schedule(async () => {
+    const apiRequestUrl = getAggregatorRequestUrl("/swap", swapParams);
+    const res = await fetch(apiRequestUrl, {
+      method: "get",
+      headers: getHeaderParams(apiRequestUrl),
+    });
+    return res.json();
   });
-  return res.json();
 }
 
 type SendAndSwapParams = {
@@ -204,26 +210,31 @@ type SendAndSwapParams = {
 };
 
 async function sendAndSwap({ swapData, client, logger }: SendAndSwapParams) {
-  const nonce = await client.getTransactionCount({
-    address: client.account.address,
-  });
+  // const nonce = await client.getTransactionCount({
+  //   address: client.account.address,
+  //   blockTag: "pending"
+  // });
 
   const swapDataTxInfo = swapData[0].tx;
 
   try {
-    const tx = await client.signTransaction({
+    const gasPrice = await client.getGasPrice();
+
+    const maxGasPrice = gasPrice > BigInt(swapDataTxInfo.gasPrice) ? gasPrice : BigInt(swapDataTxInfo.gasPrice)
+
+    //@ts-ignore
+    const hash = await client.sendTransaction({
       chain: client.chain,
       account: client.account,
       data: swapDataTxInfo.data,
-      gasPrice: BigInt(swapDataTxInfo.gasPrice) * BigInt(GAS_PRICE_RATIO), // avoid GasPrice too low,
+      gasPrice: maxGasPrice, // avoid GasPrice too low,
       to: swapDataTxInfo.to,
       value: swapDataTxInfo.value,
-      gas: BigInt(swapDataTxInfo.gas) * BigInt(GAS_PRICE_RATIO), // avoid GasLimit too low
-      nonce,
+      gas: BigInt(swapDataTxInfo.gas) * BigInt(GAS_LIMIT_RATIO), // avoid GasLimit too low
     });
-    const hash = await client.sendRawTransaction({
-      serializedTransaction: tx,
-    });
+    // const hash = await client.sendRawTransaction({
+    //   serializedTransaction: tx,
+    // });
     logger.log(`Swap transaction sent: ${hash}`);
     const receipt = await client.waitForTransactionReceipt({ hash });
     logger.log(`Swap transaction receipt: ${receipt.status}`);
@@ -235,8 +246,10 @@ async function sendAndSwap({ swapData, client, logger }: SendAndSwapParams) {
     return receipt;
   } catch (error) {
     logger.log(`OKX swap error: ${error}`, "error");
+    return {error: error}
   }
 }
+
 
 export type EVMSwapParams = {
   chainId: string;
@@ -261,7 +274,7 @@ export async function executeOkxSwap({
     toTokenAddress: toToken,
     amount,
     slippage,
-    userWalletAddress: USER_ADDRESS,
+    userWalletAddress: client.account.address,
   });
 
   if (swapData.code !== "0") {

@@ -187,12 +187,10 @@ export class SpreadEntry {
   CustomNotificationHTML?: string;
 
   @ApiProperty({ description: 'Input token amount on the source network' })
-  @IsNumber()
-  from_network_amount_in_tokens: number;
+  from_network_amount_in_tokens: string;
 
   @ApiProperty({ description: 'Input token amount on the destination network' })
-  @IsNumber()
-  to_network_amount_in_tokens: number;
+  to_network_amount_in_tokens: string;
 
   @ApiPropertyOptional({ description: 'Last spread value in USD' })
   @IsNumber()

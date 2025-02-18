@@ -15,6 +15,7 @@ import { Initialize } from "src/entities/initialize.entity";
 import { EVMSwapParams } from "src/blockchain/evm/providers/okx";
 import { TokenBalance } from "src/entities/token-balance.entity";
 import { AppStateService } from "../../settings/app-state.service";
+import { parseCompactSignature } from "viem";
 
 const NETWORK_TO_EXPLORER = {
   "solana": "https://solscan.io/tx/",
@@ -160,25 +161,25 @@ export class DDService implements OnModuleInit {
     }));
   }
 
-  private async requestRoutesWithRetry(
-    params: CreateOrderDto,
-    retries = this.MAX_RETRIES
-  ): Promise<{ network0: any; network1: any }> {
-    try {
-      return await this.requestRoutes(params);
-    } catch (error) {
-      if (retries > 0) {
-        await this.logger.log(
-          `Retry attempt ${this.MAX_RETRIES - retries + 1}: ${error.message}`,
-          "warn"
-        );
-        return this.requestRoutesWithRetry(params, retries - 1);
-      }
-      throw new Error(
-        `Failed after ${this.MAX_RETRIES} retries: ${error.message}`
-      );
-    }
-  }
+  // private async requestRoutesWithRetry(
+  //   params: CreateOrderDto,
+  //   retries = this.MAX_RETRIES
+  // ): Promise<{ network0: any; network1: any }> {
+  //   try {
+  //     return await this.requestRoutes(params);
+  //   } catch (error) {
+  //     if (retries > 0) {
+  //       await this.logger.log(
+  //         `Retry attempt ${this.MAX_RETRIES - retries + 1}: ${error.message}`,
+  //         "warn"
+  //       );
+  //       return this.requestRoutesWithRetry(params, retries - 1);
+  //     }
+  //     throw new Error(
+  //       `Failed after ${this.MAX_RETRIES} retries: ${error.message}`
+  //     );
+  //   }
+  // }
 
   private async executeTransaction(
     params: SolanaSwapParams | EVMSwapParams,
@@ -205,6 +206,7 @@ export class DDService implements OnModuleInit {
       return await execute();
     } catch (error) {
       if (retries > 0) {
+        console.log(error);
         await this.logger.log(
           `Retry attempt ${this.MAX_RETRIES - retries + 1} for ${networkName}: ${error.message}`,
           "warn"
@@ -245,6 +247,7 @@ export class DDService implements OnModuleInit {
       const network0TokenBalance = await this.tokenBalanceRepository.findOne({
         where: {
           address: params.config.Network0.swapParams.fromToken,
+          chainId: 'chainId' in params.config.Network0.swapParams ? params.config.Network0.swapParams.chainId : '101',
         },
       });
 
@@ -257,23 +260,23 @@ export class DDService implements OnModuleInit {
 
       if (
         Number(network0TokenBalance.balance) <
-        Number(params.spread_entry.from_network_amount_in_tokens)
+        Number(params.config.Network0.swapParams.amount)
       ) {
         throw new Error(
           `Insufficient balance for ${params.config.Network0.swapParams.fromToken}
-          ${network0TokenBalance.balance} < ${params.spread_entry.from_network_amount_in_tokens}
+          ${network0TokenBalance.balance} < ${params.config.Network0.swapParams.amount}
           chain: ${params.config.Network0.NetworkName}`
         );
       }
 
       if (
         Number(network0TokenBalance.currentAllowance) <
-          Number(params.spread_entry.from_network_amount_in_tokens) &&
+          Number(params.config.Network0.swapParams.amount) &&
         network0TokenBalance.chainId !== "101"
       ) {
         throw new Error(
           `Insufficient allowance for ${params.config.Network0.swapParams.fromToken}
-          ${network0TokenBalance.currentAllowance} < ${params.spread_entry.from_network_amount_in_tokens}
+          ${network0TokenBalance.currentAllowance} < ${params.config.Network0.swapParams.amount}
           chain: ${params.config.Network0.NetworkName}`
         );
       }
@@ -281,6 +284,7 @@ export class DDService implements OnModuleInit {
       const network1TokenBalance = await this.tokenBalanceRepository.findOne({
         where: {
           address: params.config.Network1.swapParams.fromToken,
+          chainId: 'chainId' in params.config.Network1.swapParams ? params.config.Network1.swapParams.chainId : '101',
         },
       });
 
@@ -293,23 +297,23 @@ export class DDService implements OnModuleInit {
 
       if (
         Number(network1TokenBalance.balance) <
-        Number(params.spread_entry.from_network_amount_in_tokens)
+        Number(params.config.Network1.swapParams.amount)
       ) {
         throw new Error(
           `Insufficient balance for ${params.config.Network1.swapParams.fromToken}
-          ${network1TokenBalance.balance} < ${params.spread_entry.from_network_amount_in_tokens}
+          ${network1TokenBalance.balance} < ${params.config.Network1.swapParams.amount}
           chain: ${params.config.Network1.NetworkName}`
         );
       }
 
       if (
         Number(network1TokenBalance.currentAllowance) <
-          Number(params.spread_entry.from_network_amount_in_tokens) &&
+          Number(params.config.Network1.swapParams.amount) &&
         network1TokenBalance.chainId !== "101"
       ) {
         throw new Error(
           `Insufficient allowance for ${params.config.Network1.swapParams.fromToken}
-          ${network1TokenBalance.currentAllowance} < ${params.spread_entry.from_network_amount_in_tokens}
+          ${network1TokenBalance.currentAllowance} < ${params.config.Network1.swapParams.amount}
           chain: ${params.config.Network1.NetworkName}`
         );
       }
@@ -327,6 +331,7 @@ export class DDService implements OnModuleInit {
           params.config.Network0.wallet.key,
           params.config.Network0.wallet.address
         ),
+        
         this.executeTransaction(
           params.config.Network1.swapParams,
           params.config.Network1.NetworkName,
@@ -403,8 +408,8 @@ ${network1Message}`;
       order.result = {
         error: error.message,
       };
-      await this.logger.log(`Order failed: ${error.message}`, "error");
-      await this.logger.telegramNotify(`Order failed: ${error.message}`, 'HTML');
+      await this. logger.log(`Order failed: ${error.message}`, "error");
+      await this.logger.telegramNotify(`Order failed: ${error.message}`);
     }
 
     return await this.orderRepository.save(order);

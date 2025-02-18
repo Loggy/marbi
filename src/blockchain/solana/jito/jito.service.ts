@@ -19,7 +19,7 @@ export class JitoService implements OnModuleInit {
   private tipFloorData: TipFloorData | null = null;
   private base_percentile = 'landed_tips_75th_percentile';
 
-  private BASE_TINY_ADDITION_SOL = 0.0003;
+  private BASE_TINY_ADDITION_SOL_PERCENT = 1.05;
 
   private readonly axiosInstance;
 
@@ -70,7 +70,7 @@ export class JitoService implements OnModuleInit {
 
   public async fetchLatestTipFloorData(): Promise<number> {
     const tipFloorData = await this.fetchTipFloorData();
-    return tipFloorData[this.base_percentile] + this.BASE_TINY_ADDITION_SOL;
+    return tipFloorData[this.base_percentile] * this.BASE_TINY_ADDITION_SOL_PERCENT;
   } 
 
   public getLatestTipFloorData(): number | null {
