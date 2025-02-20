@@ -386,23 +386,24 @@ export class SolanaService {
 
     const isError = !!txDetails.meta?.err;
 
-    if (isError) {
-      const slippageErrorMessage = txDetails.meta.logMessages.find((message) => message.includes("custom program error: 0x1771"));
-
-      if (slippageErrorMessage) {
-        return {
-          isError: true,
-          isSlippage: true,
-        };
-      }
+    if (!isError) {
       return {
-        isError: true,
-        isSlippage: false,
+        isError: false,
       };
     }
 
-    return {
-      isError: false,
+    const slippageErrorMessage = txDetails.meta.logMessages.find((message) => message.includes("custom program error: 0x1771"));
+
+    if (slippageErrorMessage) {
+      return {
+        isError: true,
+        isSlippage: true,
+      };
     }
+    return {
+      isError: true,
+      isSlippage: false,
+    };
+    
   }
 }
