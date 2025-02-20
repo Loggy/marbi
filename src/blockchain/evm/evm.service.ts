@@ -22,11 +22,11 @@ import { TokenBalance } from "src/entities/token-balance.entity";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 
-import { createNonceManager, jsonRpc } from 'viem/nonce'
+import { createNonceManager, jsonRpc } from "viem/nonce";
 
 const nonceManager = createNonceManager({
-  source: jsonRpc()
-})
+  source: jsonRpc(),
+});
 
 const createViemClient = (chain: Chain, rpcUrl: string) => {
   const transport = http(rpcUrl);
@@ -46,7 +46,10 @@ export const EVM_SPENDER_ADDRESSES = OKX_SPENDER_ADDRESSES;
 const CHAIN_CLIENTS: ChainClients = {
   "1": createViemClient(mainnet, process.env.MAINNET_RPC_URL as string),
   "8453": createViemClient(base, base.rpcUrls.default.http[0] as string),
-  "42161": createViemClient(arbitrum, arbitrum.rpcUrls.default.http[0] as string),
+  "42161": createViemClient(
+    arbitrum,
+    arbitrum.rpcUrls.default.http[0] as string
+  ),
   "56": createViemClient(bsc, bsc.rpcUrls.default.http[0] as string),
 };
 
@@ -67,6 +70,14 @@ export function getChainIdByName(chainName: string) {
 
 // Update the WalletClientConfig type to use our new ChainClients type
 export type WalletClientConfig = ChainClients[keyof ChainClients];
+
+export type EVMSwapResult = {
+  txid: string;
+  fromTokenBalanceChange: bigint;
+  toTokenBalanceChange: bigint;
+  endTimestamp: number;
+  gasPayed: number;
+};
 
 @Injectable()
 export class EVMService {
@@ -93,13 +104,15 @@ export class EVMService {
     privateKey?: string
   ): WalletClientConfig {
     try {
-      const chainIdStr = chainId.toString(); 
+      const chainIdStr = chainId.toString();
       if (chainIdStr in CHAIN_CLIENTS) {
         if (privateKey) {
           // Create a new client with the provided private key
           const baseClient = CHAIN_CLIENTS[chainIdStr as keyof ChainClients];
-          const account = privateKeyToAccount(privateKey as `0x${string}`, { nonceManager });
-          const walletClient = createWalletClient({ 
+          const account = privateKeyToAccount(privateKey as `0x${string}`, {
+            nonceManager,
+          });
+          const walletClient = createWalletClient({
             chain: baseClient.chain,
             transport: http(baseClient.transport.url), // Create new transport with the same URL
             account: account,
@@ -187,12 +200,13 @@ export class EVMService {
 
   async executeSwap(
     params: EVMSwapParams & { privateKey?: string }
-  ) {
-    const swapResult = {
+  ): Promise<EVMSwapResult> {
+    const swapResult: EVMSwapResult = {
       txid: "",
       fromTokenBalanceChange: 0n,
       toTokenBalanceChange: 0n,
       endTimestamp: 0,
+      gasPayed: 0,
     };
 
     this.logger.log(`Executing EVM swap: ${JSON.stringify(params)}`);
@@ -205,20 +219,25 @@ export class EVMService {
       logger: this.logger,
     });
 
-    if ('error' in receipt) {
+    if ("error" in receipt) {
       throw new Error(receipt.error);
     }
 
     swapResult.txid = receipt.transactionHash;
+
+    // Calculate total gas paid in native token units
+    const gasUsed = receipt.gasUsed;
+    const effectiveGasPrice = receipt.effectiveGasPrice;
+    swapResult.gasPayed = Number(gasUsed * effectiveGasPrice);
 
     // Get block timestamp from the transaction
     const block = await client.getBlock({
       blockHash: receipt.blockHash,
       includeTransactions: false,
     });
-    
+
     swapResult.endTimestamp = Number(block.timestamp) * 1000; // Convert seconds to milliseconds
-    
+
     if (receipt.status === "success") {
       const tokensInfo = await this.getTokensInfo(
         client.account.address,
@@ -234,9 +253,11 @@ export class EVMService {
         });
         if (tokenBalance) {
           if (tokenInfo.tokenAddress === params.fromToken) {
-            swapResult.fromTokenBalanceChange = tokenInfo.balance - BigInt(tokenBalance.balance);
+            swapResult.fromTokenBalanceChange =
+              tokenInfo.balance - BigInt(tokenBalance.balance);
           } else {
-            swapResult.toTokenBalanceChange = tokenInfo.balance - BigInt(tokenBalance.balance);
+            swapResult.toTokenBalanceChange =
+              tokenInfo.balance - BigInt(tokenBalance.balance);
           }
           tokenBalance.balance = tokenInfo.balance.toString();
           tokenBalance.currentAllowance = tokenInfo.allowance.toString();
@@ -330,7 +351,7 @@ export class EVMService {
       }
 
       const client = this.getClient(chainId, privateKey);
- 
+
       this.logger.log(
         `Setting allowance for ${tokenAddress} to ${allowance} on chain ${chainId}`
       );
@@ -344,7 +365,7 @@ export class EVMService {
         account: client.account,
       });
       await client.waitForTransactionReceipt({ hash });
-      return hash; 
+      return hash;
     } catch (error) {
       await this.logger.log(
         `Failed to set allowance: ${error.message}`,

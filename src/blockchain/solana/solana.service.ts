@@ -41,13 +41,26 @@ export interface TokenBalanceChange {
   difference: bigint;
 }
 
+export type SolanaSwapResult = {
+  txid: string;
+  fromTokenBalanceChange: bigint;
+  toTokenBalanceChange: bigint;
+  endTimestamp: number;
+  gasPayed: number;
+  jitoTip?: number;
+  error: TransactionError;
+};
+
 @Injectable()
 export class SolanaService {
   private client: Connection;
   private jitoClient: Connection;
   @InjectRepository(TokenBalanceEntity)
   private tokenBalanceRepository: Repository<TokenBalance>;
-  constructor(private readonly logger: LoggerService, private readonly jitoService: JitoService) {
+  constructor(
+    private readonly logger: LoggerService,
+    private readonly jitoService: JitoService
+  ) {
     this.client = new Connection(process.env.SOLANA_RPC_URL);
     this.jitoClient = new Connection(process.env.JITO_RPC_URL);
   }
@@ -150,7 +163,10 @@ export class SolanaService {
     };
   }
 
-  private async signAndSendTransaction(transaction: VersionedTransaction, privateKey?: string) {
+  private async signAndSendTransaction(
+    transaction: VersionedTransaction,
+    privateKey?: string
+  ) {
     // Sign the transaction
     transaction.sign([this.getWallet(privateKey).payer]);
 
@@ -177,7 +193,10 @@ export class SolanaService {
     return { txid, confirmation };
   }
 
-  private async signAndSendTransactionJito(transaction: VersionedTransaction, privateKey?: string) {
+  private async signAndSendTransactionJito(
+    transaction: VersionedTransaction,
+    privateKey?: string
+  ) {
     // Sign the transaction
     transaction.sign([this.getWallet(privateKey).payer]);
 
@@ -206,30 +225,27 @@ export class SolanaService {
 
   async executeSwap(params: SolanaSwapParams) {
     const wallet = this.getWallet(params.privateKey);
-    const swapResult: {
-      txid: string;
-      fromTokenBalanceChange: bigint;
-      toTokenBalanceChange: bigint;
-      endTimestamp: number;
-      error: TransactionError;
-    } = {
+    const swapResult: SolanaSwapResult = {
       txid: "",
       fromTokenBalanceChange: 0n,
       toTokenBalanceChange: 0n,
       endTimestamp: 0,
+      gasPayed: 0,
+      jitoTip: 0,
       error: null,
     };
 
-    let slippageBps = Number(params.slippage || '0.5') * 100;
+    let slippageBps = Number(params.slippage || "0.5") * 100;
 
     const withJito = true;
 
     if (withJito) {
       slippageBps = 10 * 100;
       const tipFloorData = await this.jitoService.fetchLatestTipFloorData();
-      if (tipFloorData) {
-        params.jitoTipLamports = Math.floor(tipFloorData * LAMPORTS_PER_SOL);
-      }
+
+      swapResult.gasPayed = tipFloorData;
+      swapResult.jitoTip = tipFloorData;
+      params.jitoTipLamports = Math.floor(tipFloorData * LAMPORTS_PER_SOL);
     }
 
     this.logger.log(
@@ -309,7 +325,9 @@ export class SolanaService {
     const { isError, isSlippage } = await this.checkError(txDetails);
 
     if (isError) {
-      throw new Error("Solana transaction failed" + (isSlippage ? ", Slippage error" : ""));
+      throw new Error(
+        "Solana transaction failed" + (isSlippage ? ", Slippage error" : "")
+      );
     }
 
     swapResult.endTimestamp = (txDetails.blockTime || 0) * 1000;
@@ -341,7 +359,8 @@ export class SolanaService {
     });
 
     if (fromTokenBalance) {
-      const fromTokenBalanceChange = BigInt(fromTokenNewBalance) - BigInt(fromTokenBalance.balance);
+      const fromTokenBalanceChange =
+        BigInt(fromTokenNewBalance) - BigInt(fromTokenBalance.balance);
       swapResult.fromTokenBalanceChange = fromTokenBalanceChange;
 
       fromTokenBalance.balance = fromTokenNewBalance.toString();
@@ -349,7 +368,8 @@ export class SolanaService {
     }
 
     if (toTokenBalance) {
-      const toTokenBalanceChange = BigInt(toTokenNewBalance) - BigInt(toTokenBalance.balance);
+      const toTokenBalanceChange =
+        BigInt(toTokenNewBalance) - BigInt(toTokenBalance.balance);
       swapResult.toTokenBalanceChange = toTokenBalanceChange;
 
       toTokenBalance.balance = toTokenNewBalance.toString();
@@ -383,7 +403,6 @@ export class SolanaService {
   }
 
   async checkError(txDetails: ParsedTransactionWithMeta) {
-
     const isError = !!txDetails.meta?.err;
 
     if (!isError) {
@@ -392,7 +411,9 @@ export class SolanaService {
       };
     }
 
-    const slippageErrorMessage = txDetails.meta.logMessages.find((message) => message.includes("custom program error: 0x1771"));
+    const slippageErrorMessage = txDetails.meta.logMessages.find((message) =>
+      message.includes("custom program error: 0x1771")
+    );
 
     if (slippageErrorMessage) {
       return {
@@ -404,6 +425,5 @@ export class SolanaService {
       isError: true,
       isSlippage: false,
     };
-    
   }
 }

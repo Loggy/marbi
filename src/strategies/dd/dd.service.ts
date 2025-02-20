@@ -2,10 +2,11 @@ import { Injectable, OnModuleInit, BadRequestException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { Order } from "../../entities/order.entity";
-import { EVMService } from "../../blockchain/evm/evm.service";
+import { EVMService, EVMSwapResult } from "../../blockchain/evm/evm.service";
 import {
   SolanaService,
   SolanaSwapParams,
+  SolanaSwapResult,
 } from "../../blockchain/solana/solana.service";
 import { DexRouterService } from "../../dex-router/dex-router.service";
 import { LoggerService } from "../../logger/logger.service";
@@ -18,18 +19,30 @@ import { AppStateService } from "../../settings/app-state.service";
 import { parseCompactSignature } from "viem";
 
 const NETWORK_TO_EXPLORER = {
-  "solana": "https://solscan.io/tx/",
-  "ethereum": "https://etherscan.io/tx/",
-  "arbitrum": "https://arbiscan.io/tx/",
-  "base": "https://basescan.org/tx/",
-  "polygon": "https://polygonscan.com/tx/",
-  "avalanche": "https://snowtrace.io/tx/",
-  "optimism": "https://optimistic.etherscan.io/tx/",
-  "gnosis": "https://gnosisscan.io/tx/",
-  "fantom": "https://ftmscan.com/tx/", 
-  "bsc": "https://bscscan.com/tx/",
-}
+  solana: "https://solscan.io/tx/",
+  ethereum: "https://etherscan.io/tx/",
+  arbitrum: "https://arbiscan.io/tx/",
+  base: "https://basescan.org/tx/",
+  polygon: "https://polygonscan.com/tx/",
+  avalanche: "https://snowtrace.io/tx/",
+  optimism: "https://optimistic.etherscan.io/tx/",
+  gnosis: "https://gnosisscan.io/tx/",
+  fantom: "https://ftmscan.com/tx/",
+  bsc: "https://bscscan.com/tx/",
+} as const;
 
+const NETWORK_TO_NATIVE_TOKEN = {
+  solana: "SOL",
+  ethereum: "ETH",
+  arbitrum: "ETH",
+  base: "ETH",
+  polygon: "MATIC",
+  avalanche: "AVAX",
+  optimism: "ETH",
+  gnosis: "XDAI",
+  fantom: "FTM",
+  bsc: "BNB",
+} as const;
 
 @Injectable()
 export class DDService implements OnModuleInit {
@@ -68,7 +81,7 @@ export class DDService implements OnModuleInit {
       },
       take: 1,
     });
- 
+
     if (!lastInitialize) {
       throw new Error("No initialization config found in database");
     }
@@ -187,7 +200,7 @@ export class DDService implements OnModuleInit {
     privateKey: string,
     address: string,
     retries = this.MAX_RETRIES
-  ): Promise<{ txid: string; fromTokenBalanceChange: bigint; toTokenBalanceChange: bigint; endTimestamp: number }> {
+  ): Promise<SolanaSwapResult | EVMSwapResult> {
     const execute = async () => {
       if (networkName === "solana") {
         return this.solanaService.executeSwap({
@@ -227,7 +240,7 @@ export class DDService implements OnModuleInit {
 
   async createOrder(params: CreateOrderDto): Promise<Order> {
     const startTime = new Date();
-    
+
     // Check if app is initialized
     if (!this.appStateService.getIsInitialized()) {
       this.logger.log("App is not initialized yet", "error");
@@ -247,7 +260,10 @@ export class DDService implements OnModuleInit {
       const network0TokenBalance = await this.tokenBalanceRepository.findOne({
         where: {
           address: params.config.Network0.swapParams.fromToken,
-          chainId: 'chainId' in params.config.Network0.swapParams ? params.config.Network0.swapParams.chainId : '101',
+          chainId:
+            "chainId" in params.config.Network0.swapParams
+              ? params.config.Network0.swapParams.chainId
+              : "101",
         },
       });
 
@@ -284,7 +300,10 @@ export class DDService implements OnModuleInit {
       const network1TokenBalance = await this.tokenBalanceRepository.findOne({
         where: {
           address: params.config.Network1.swapParams.fromToken,
-          chainId: 'chainId' in params.config.Network1.swapParams ? params.config.Network1.swapParams.chainId : '101',
+          chainId:
+            "chainId" in params.config.Network1.swapParams
+              ? params.config.Network1.swapParams.chainId
+              : "101",
         },
       });
 
@@ -318,12 +337,7 @@ export class DDService implements OnModuleInit {
         );
       }
 
-      // // First phase: Get routes (retried together)
-      // const routes = await this.requestRoutesWithRetry(params);
-      // await this.logger.log(`Routes: ${JSON.stringify(routes)}`);
 
-      // Second phase: Execute transactions (retried separately)
-      
       const [network0TxResult, network1TxResult] = await Promise.all([
         this.executeTransaction(
           params.config.Network0.swapParams,
@@ -331,7 +345,7 @@ export class DDService implements OnModuleInit {
           params.config.Network0.wallet.key,
           params.config.Network0.wallet.address
         ),
-        
+
         this.executeTransaction(
           params.config.Network1.swapParams,
           params.config.Network1.NetworkName,
@@ -340,14 +354,13 @@ export class DDService implements OnModuleInit {
         ),
       ]);
 
-
       const network0FromToken = await this.tokenBalanceRepository.findOne({
         where: {
           address: params.config.Network0.swapParams.fromToken,
         },
       });
 
-      const network0ToToken = await this.tokenBalanceRepository.findOne({ 
+      const network0ToToken = await this.tokenBalanceRepository.findOne({
         where: {
           address: params.config.Network0.swapParams.toToken,
         },
@@ -364,7 +377,7 @@ export class DDService implements OnModuleInit {
           address: params.config.Network1.swapParams.toToken,
         },
       });
-      
+
       order.status = "COMPLETED";
       order.result = {
         network0: {
@@ -372,50 +385,71 @@ export class DDService implements OnModuleInit {
           toToken: params.config.Network0.swapParams.toToken,
           networkName: params.config.Network0.NetworkName,
           txid: network0TxResult.txid,
-          fromTokenBalanceChange: (Number(network0TxResult.fromTokenBalanceChange) / 10 ** network0FromToken.decimals).toString(),
-          toTokenBalanceChange: (Number(network0TxResult.toTokenBalanceChange) / 10 ** network0ToToken.decimals).toString(),
+          fromTokenBalanceChange: (
+            Number(network0TxResult.fromTokenBalanceChange) /
+            10 ** network0FromToken.decimals
+          ).toString(),
+          toTokenBalanceChange: (
+            Number(network0TxResult.toTokenBalanceChange) /
+            10 ** network0ToToken.decimals
+          ).toString(),
           time: (network0TxResult.endTimestamp - startTime.getTime()) / 1000,
+          gasPayed: network0TxResult.gasPayed,
         },
         network1: {
           fromToken: params.config.Network1.swapParams.fromToken,
           toToken: params.config.Network1.swapParams.toToken,
           networkName: params.config.Network1.NetworkName,
           txid: network1TxResult.txid,
-          fromTokenBalanceChange: (Number(network1TxResult.fromTokenBalanceChange) / 10 ** network1FromToken.decimals).toString(),
-          toTokenBalanceChange: (Number(network1TxResult.toTokenBalanceChange) / 10 ** network1ToToken.decimals).toString(),
+          fromTokenBalanceChange: (
+            Number(network1TxResult.fromTokenBalanceChange) /
+            10 ** network1FromToken.decimals
+          ).toString(),
+          toTokenBalanceChange: (
+            Number(network1TxResult.toTokenBalanceChange) /
+            10 ** network1ToToken.decimals
+          ).toString(),
           time: (network1TxResult.endTimestamp - startTime.getTime()) / 1000,
+          gasPayed: network1TxResult.gasPayed,
         },
       };
 
       const startTimeUTC = startTime.toUTCString();
 
-      const network0Message = this.generateMessageForTelegram(order.result.network0);
-      const network1Message = this.generateMessageForTelegram(order.result.network1);
+      const network0Message = this.generateMessageForTelegram(
+        order.result.network0
+      );
+      const network1Message = this.generateMessageForTelegram(
+        order.result.network1
+      );
 
       const message = `<b>${params.config.Ticker}</b> ${startTimeUTC}
 ${network0Message}
 ${network1Message}`;
-      
 
       this.logger.log(`Order completed:
         network0Result: ${JSON.stringify(order.result.network0)}
         network1Result: ${JSON.stringify(order.result.network1)}`);
 
-        await this.logger.telegramNotify(message, 'HTML');
-
+      await this.logger.telegramNotify(message, "HTML");
     } catch (error) {
       order.status = "FAILED";
       order.result = {
         error: error.message,
       };
       await this.logger.log(`Order failed: ${error.message}`, "error");
-      await this.logger.telegramNotify(`Order failed: ${error.message}`, undefined, 'error');
+      await this.logger.telegramNotify(
+        `Order failed: ${error.message}`,
+        undefined,
+        "error"
+      );
     }
 
     return await this.orderRepository.save(order);
   }
 
   private generateMessageForTelegram(result: any): string {
+    const nativeToken = NETWORK_TO_NATIVE_TOKEN[result.networkName as keyof typeof NETWORK_TO_NATIVE_TOKEN];
     const message = `
 ${result.networkName} <a href="${NETWORK_TO_EXPLORER[result.networkName]}${result.txid}">Explorer</a>
 
@@ -425,6 +459,8 @@ change: ${result.fromTokenBalanceChange}
 to: <code>${result.toToken}</code>
 change: ${result.toTokenBalanceChange}
 time: ${result.time.toFixed(2)}s
+
+gasPayed: ${result.gasPayed} $${nativeToken}
 `;
 
     return message;
