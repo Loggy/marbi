@@ -220,11 +220,12 @@ export class SolanaService {
       error: null,
     };
 
-    const slippageBps = Number(params.slippage || '0.5') * 100;
+    let slippageBps = Number(params.slippage || '0.5') * 100;
 
     const withJito = true;
 
     if (withJito) {
+      slippageBps = 10 * 100;
       const tipFloorData = await this.jitoService.fetchLatestTipFloorData();
       if (tipFloorData) {
         params.jitoTipLamports = Math.floor(tipFloorData * LAMPORTS_PER_SOL);
@@ -305,6 +306,12 @@ export class SolanaService {
       maxSupportedTransactionVersion: 0,
     });
 
+    const { isError, isSlippage } = await this.checkError(txDetails);
+
+    if (isError) {
+      throw new Error("Solana transaction failed" + (isSlippage ? ", Slippage error" : ""));
+    }
+
     swapResult.endTimestamp = (txDetails.blockTime || 0) * 1000;
     swapResult.txid = txid;
     swapResult.error = confirmation.value.err;
@@ -373,5 +380,29 @@ export class SolanaService {
     return {
       decimals: mintInfo.decimals,
     };
+  }
+
+  async checkError(txDetails: ParsedTransactionWithMeta) {
+
+    const isError = !!txDetails.meta?.err;
+
+    if (isError) {
+      const slippageErrorMessage = txDetails.meta.logMessages.find((message) => message.includes("custom program error: 0x1771"));
+
+      if (slippageErrorMessage) {
+        return {
+          isError: true,
+          isSlippage: true,
+        };
+      }
+      return {
+        isError: true,
+        isSlippage: false,
+      };
+    }
+
+    return {
+      isError: false,
+    }
   }
 }
