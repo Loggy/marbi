@@ -7,6 +7,7 @@ import {
   type PublicActions,
   erc20Abi,
   Address,
+  formatEther,
 } from "viem";
 import { LoggerService } from "../../logger/logger.service";
 import { privateKeyToAccount } from "viem/accounts";
@@ -45,12 +46,12 @@ export const EVM_SPENDER_ADDRESSES = OKX_SPENDER_ADDRESSES;
 
 const CHAIN_CLIENTS: ChainClients = {
   "1": createViemClient(mainnet, process.env.MAINNET_RPC_URL as string),
-  "8453": createViemClient(base, base.rpcUrls.default.http[0] as string),
+  "8453": createViemClient(base, process.env.BASE_RPC_URL as string),
   "42161": createViemClient(
     arbitrum,
-    arbitrum.rpcUrls.default.http[0] as string
+    process.env.ARBITRUM_RPC_URL as string
   ),
-  "56": createViemClient(bsc, bsc.rpcUrls.default.http[0] as string),
+  "56": createViemClient(bsc, process.env.BSC_RPC_URL as string),
 };
 
 const CHAIN_NAME_TO_ID = {
@@ -228,7 +229,7 @@ export class EVMService {
     // Calculate total gas paid in native token units
     const gasUsed = receipt.gasUsed;
     const effectiveGasPrice = receipt.effectiveGasPrice;
-    swapResult.gasPayed = Number(gasUsed * effectiveGasPrice);
+    swapResult.gasPayed = Number(formatEther(gasUsed * effectiveGasPrice));
 
     // Get block timestamp from the transaction
     const block = await client.getBlock({

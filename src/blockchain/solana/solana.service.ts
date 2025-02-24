@@ -188,6 +188,7 @@ export class SolanaService {
       lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
       signature: txid,
     });
+
     this.logger.log(`Transaction confirmed: ${txid}`);
 
     return { txid, confirmation };
@@ -240,7 +241,7 @@ export class SolanaService {
     const withJito = true;
 
     if (withJito) {
-      slippageBps = 10 * 100;
+      slippageBps = 5 * 100;
       const tipFloorData = await this.jitoService.fetchLatestTipFloorData();
 
       swapResult.gasPayed = tipFloorData;
@@ -318,9 +319,16 @@ export class SolanaService {
       : await this.signAndSendTransaction(transaction, params.privateKey);
 
     // Fetch transaction details to get block time
-    const txDetails = await this.client.getParsedTransaction(txid, {
+    let txDetails = await this.client.getParsedTransaction(txid, {
       maxSupportedTransactionVersion: 0,
     });
+
+    if (!txDetails) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      txDetails = await this.client.getParsedTransaction(txid, {
+        maxSupportedTransactionVersion: 0,
+      });
+    }
 
     const { isError, isSlippage } = await this.checkError(txDetails);
 
@@ -330,7 +338,7 @@ export class SolanaService {
       );
     }
 
-    swapResult.endTimestamp = (txDetails.blockTime || 0) * 1000;
+    swapResult.endTimestamp = (txDetails?.blockTime || 0) * 1000;
     swapResult.txid = txid;
     swapResult.error = confirmation.value.err;
 
@@ -402,7 +410,13 @@ export class SolanaService {
     };
   }
 
-  async checkError(txDetails: ParsedTransactionWithMeta) {
+  async checkError(txDetails: ParsedTransactionWithMeta | null) {
+    if (!txDetails) {
+      return {
+        isUnknown: true,
+      };
+    }
+
     const isError = !!txDetails.meta?.err;
 
     if (!isError) {
