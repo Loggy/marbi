@@ -280,8 +280,8 @@ export class DDService implements OnModuleInit {
       ) {
         throw new Error(
           `Insufficient balance for ${params.config.Network0.swapParams.fromToken}
-          ${network0TokenBalance.balance} < ${params.config.Network0.swapParams.amount}
-          chain: ${params.config.Network0.NetworkName}`
+${network0TokenBalance.balance} less than ${params.config.Network0.swapParams.amount}
+chain: ${params.config.Network0.NetworkName}`
         );
       }
 
@@ -292,8 +292,8 @@ export class DDService implements OnModuleInit {
       ) {
         throw new Error(
           `Insufficient allowance for ${params.config.Network0.swapParams.fromToken}
-          ${network0TokenBalance.currentAllowance} < ${params.config.Network0.swapParams.amount}
-          chain: ${params.config.Network0.NetworkName}`
+${network0TokenBalance.currentAllowance} less than ${params.config.Network0.swapParams.amount}
+chain: ${params.config.Network0.NetworkName}`
         );
       }
 
@@ -320,8 +320,8 @@ export class DDService implements OnModuleInit {
       ) {
         throw new Error(
           `Insufficient balance for ${params.config.Network1.swapParams.fromToken}
-          ${network1TokenBalance.balance} < ${params.config.Network1.swapParams.amount}
-          chain: ${params.config.Network1.NetworkName}`
+${network1TokenBalance.balance} less than ${params.config.Network1.swapParams.amount}
+chain: ${params.config.Network1.NetworkName}`
         );
       }
 
@@ -332,13 +332,13 @@ export class DDService implements OnModuleInit {
       ) {
         throw new Error(
           `Insufficient allowance for ${params.config.Network1.swapParams.fromToken}
-          ${network1TokenBalance.currentAllowance} < ${params.config.Network1.swapParams.amount}
-          chain: ${params.config.Network1.NetworkName}`
+${network1TokenBalance.currentAllowance} less than ${params.config.Network1.swapParams.amount}
+chain: ${params.config.Network1.NetworkName}`
         );
       }
 
       this.logger.telegramNotify(`Starting transactions for ${params.config.Ticker} on ${params.config.Network0.NetworkName} and ${params.config.Network1.NetworkName}
-        ${new Date().toUTCString()}`);
+${new Date().toUTCString()}`);
 
       const [network0TxResult, network1TxResult] = await Promise.all([
         this.executeTransaction(
