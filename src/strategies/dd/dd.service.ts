@@ -337,6 +337,8 @@ export class DDService implements OnModuleInit {
         );
       }
 
+      this.logger.telegramNotify(`Starting transactions for ${params.config.Ticker} on ${params.config.Network0.NetworkName} and ${params.config.Network1.NetworkName}
+        ${new Date().toUTCString()}`);
 
       const [network0TxResult, network1TxResult] = await Promise.all([
         this.executeTransaction(

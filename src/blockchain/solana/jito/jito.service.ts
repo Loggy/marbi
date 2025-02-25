@@ -53,7 +53,7 @@ export class JitoService implements OnModuleInit {
       if (Array.isArray(data)) {
         this.tipFloorData = data[0] as TipFloorData;
         this.logger.log(
-          `Updated Jito tip floor data. Latest time: ${this.tipFloorData.time} ${this.base_percentile} ${this.tipFloorData[this.base_percentile]}`,
+          `Updated Jito tip floor data. ${this.base_percentile} ${this.tipFloorData[this.base_percentile]}`,
           "info"
         );
         return this.tipFloorData;

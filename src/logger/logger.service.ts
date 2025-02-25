@@ -18,18 +18,19 @@ export class LoggerService {
     message: string,
     level: "info" | "error" | "warn" | "debug" = "info"
   ): Promise<void> {
+    const timestamp = new Date().toUTCString();
     switch (level) {
       case "error":
-        console.error(`[ERROR] ${message}`);
+        console.error(`[ERROR] ${timestamp} ${message}'`);
         break;
       case "warn":
-        console.warn(`[WARN] ${message}`);
+        console.warn(`[WARN] ${timestamp} ${message}`);
         break;
       case "debug":
-        console.log(`[DEBUG] ${message}`);
+        console.log(`[DEBUG] ${timestamp} ${message}`);
         break;
       default:
-        console.info(`[INFO] ${message}`);
+        console.info(`[INFO] ${timestamp} ${message}`);
     }
   }
 
