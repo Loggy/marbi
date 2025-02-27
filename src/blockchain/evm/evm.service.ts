@@ -46,7 +46,7 @@ export const EVM_SPENDER_ADDRESSES = OKX_SPENDER_ADDRESSES;
 
 const CHAIN_CLIENTS: ChainClients = {
   "1": createViemClient(mainnet, process.env.MAINNET_RPC_URL as string),
-  "8453": createViemClient(base, process.env.BASE_RPC_URL as string),
+  "8453": createViemClient(base, base.rpcUrls.default.http[0] as string),
   "42161": createViemClient(
     arbitrum,
     process.env.ARBITRUM_RPC_URL as string

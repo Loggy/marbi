@@ -342,53 +342,73 @@ export class SolanaService {
     swapResult.txid = txid;
     swapResult.error = confirmation.value.err;
 
-    const fromTokenNewBalance = await this.getTokenBalance(
-      params.fromToken,
-      wallet.publicKey.toString(),
-      params.privateKey
-    );
+    // Get wallet public key as string to match owner in token balances
+    const walletPublicKey = wallet.publicKey.toString();
+    
+    // Process token balance changes directly from transaction details
+    if (txDetails?.meta) {
+      const { preTokenBalances, postTokenBalances } = txDetails.meta;
+      
+      // Helper function to find token balance by mint address and owner
+      const findTokenBalance = (balances = [], mintAddress: string) => {
+        return balances.find(balance => 
+          balance.mint === mintAddress && 
+          balance.owner === walletPublicKey
+        );
+      };
+      
+      // Get pre and post balances for fromToken
+      const preFromTokenBalance = findTokenBalance(preTokenBalances, params.fromToken);
+      const postFromTokenBalance = findTokenBalance(postTokenBalances, params.fromToken);
+      
+      // Get pre and post balances for toToken
+      const preToTokenBalance = findTokenBalance(preTokenBalances, params.toToken);
+      const postToTokenBalance = findTokenBalance(postTokenBalances, params.toToken);
+      
+      // Calculate balance changes
+      if (preFromTokenBalance && postFromTokenBalance) {
+        const preAmount = BigInt(preFromTokenBalance.uiTokenAmount.amount);
+        const postAmount = BigInt(postFromTokenBalance.uiTokenAmount.amount);
+        swapResult.fromTokenBalanceChange = postAmount - preAmount;
+      }
+      
+      if (preToTokenBalance && postToTokenBalance) {
+        const preAmount = BigInt(preToTokenBalance.uiTokenAmount.amount);
+        const postAmount = BigInt(postToTokenBalance.uiTokenAmount.amount);
+        swapResult.toTokenBalanceChange = postAmount - preAmount;
+      }
+      
+      // Update database with new balances from transaction details
+      if (postFromTokenBalance) {
+        const fromTokenBalance = await this.tokenBalanceRepository.findOne({
+          where: {
+            address: params.fromToken,
+          },
+        });
 
-    const toTokenNewBalance = await this.getTokenBalance(
-      params.toToken,
-      wallet.publicKey.toString(),
-      params.privateKey
-    );
+        if (fromTokenBalance) {
+          fromTokenBalance.balance = postFromTokenBalance.uiTokenAmount.amount;
+          await this.tokenBalanceRepository.save(fromTokenBalance);
+        }
+      }
 
-    const fromTokenBalance = await this.tokenBalanceRepository.findOne({
-      where: {
-        address: params.fromToken,
-      },
-    });
+      if (postToTokenBalance) {
+        const toTokenBalance = await this.tokenBalanceRepository.findOne({
+          where: {
+            address: params.toToken,
+          },
+        });
 
-    const toTokenBalance = await this.tokenBalanceRepository.findOne({
-      where: {
-        address: params.toToken,
-      },
-    });
-
-    if (fromTokenBalance) {
-      const fromTokenBalanceChange =
-        BigInt(fromTokenNewBalance) - BigInt(fromTokenBalance.balance);
-      swapResult.fromTokenBalanceChange = fromTokenBalanceChange;
-
-      fromTokenBalance.balance = fromTokenNewBalance.toString();
-      await this.tokenBalanceRepository.save(fromTokenBalance);
-    }
-
-    if (toTokenBalance) {
-      const toTokenBalanceChange =
-        BigInt(toTokenNewBalance) - BigInt(toTokenBalance.balance);
-      swapResult.toTokenBalanceChange = toTokenBalanceChange;
-
-      toTokenBalance.balance = toTokenNewBalance.toString();
-      await this.tokenBalanceRepository.save(toTokenBalance);
+        if (toTokenBalance) {
+          toTokenBalance.balance = postToTokenBalance.uiTokenAmount.amount;
+          await this.tokenBalanceRepository.save(toTokenBalance);
+        }
+      }
     }
 
     this.logger.log(
-      `Updated token balances: 
-      balance fromToken: ${fromTokenBalance?.balance}
+      `Updated token balances:
       balance change fromToken: ${swapResult.fromTokenBalanceChange}
-      balance toToken: ${toTokenBalance?.balance}
       balance change toToken: ${swapResult.toTokenBalanceChange}
       error: ${swapResult.error}`
     );
