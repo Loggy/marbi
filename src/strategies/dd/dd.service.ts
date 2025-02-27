@@ -337,7 +337,9 @@ chain: ${params.config.Network1.NetworkName}`
         );
       }
 
-      this.logger.telegramNotify(`Starting transactions for ${params.config.Ticker} on ${params.config.Network0.NetworkName} and ${params.config.Network1.NetworkName}
+      
+
+      this.logger.telegramNotify(`Starting transactions for ${params.config.Ticker} from ${params.config[params.spread_entry.from_network].NetworkName} to ${params.config[params.spread_entry.to_network].NetworkName}
 ${new Date().toUTCString()}`);
 
       const [network0TxResult, network1TxResult] = await Promise.all([
