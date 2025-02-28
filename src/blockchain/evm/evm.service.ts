@@ -8,6 +8,9 @@ import {
   erc20Abi,
   Address,
   formatEther,
+  parseEventLogs,
+  LogTopic,
+  parseAbi,
 } from "viem";
 import { LoggerService } from "../../logger/logger.service";
 import { privateKeyToAccount } from "viem/accounts";
@@ -240,6 +243,62 @@ export class EVMService {
     swapResult.endTimestamp = Number(block.timestamp) * 1000; // Convert seconds to milliseconds
 
     if (receipt.status === "success") {
+      // Parse transfer logs to calculate balance changes
+      const transferAbi = parseAbi(['event Transfer(address indexed from, address indexed to, uint256 value)']);
+      const logs = receipt.logs;
+      
+      // Calculate balance changes from logs
+      let fromTokenChange = 0n;
+      let toTokenChange = 0n;
+
+      for (const log of logs) {
+        try {
+          // Skip logs that aren't from our tokens
+          if (log.address.toLowerCase() !== params.fromToken.toLowerCase() && 
+              log.address.toLowerCase() !== params.toToken.toLowerCase()) {
+            continue;
+          }
+
+          const parsedLog = parseEventLogs({
+            abi: transferAbi,
+            logs: [log],
+          })[0];
+          
+          if (parsedLog?.eventName === 'Transfer') {
+            const { from, to, value } = parsedLog.args;
+            const userAddress = client.account.address.toLowerCase();
+            
+            // If token matches fromToken
+            if (log.address.toLowerCase() === params.fromToken.toLowerCase()) {
+              // User is sender: subtract
+              if (from.toLowerCase() === userAddress) {
+                fromTokenChange -= value;
+              }
+              // User is receiver: add
+              if (to.toLowerCase() === userAddress) {
+                fromTokenChange += value;
+              }
+            }
+            // If token matches toToken
+            else if (log.address.toLowerCase() === params.toToken.toLowerCase()) {
+              // User is sender: subtract
+              if (from.toLowerCase() === userAddress) {
+                toTokenChange -= value;
+              }
+              // User is receiver: add
+              if (to.toLowerCase() === userAddress) {
+                toTokenChange += value;
+              }
+            }
+          }
+        } catch (error) {
+          this.logger.log(`Error parsing log: ${error.message}`, "error");
+        }
+      }
+
+      swapResult.fromTokenBalanceChange = fromTokenChange;
+      swapResult.toTokenBalanceChange = toTokenChange;
+
       const tokensInfo = await this.getTokensInfo(
         client.account.address,
         params.chainId,
@@ -253,13 +312,6 @@ export class EVMService {
           },
         });
         if (tokenBalance) {
-          if (tokenInfo.tokenAddress === params.fromToken) {
-            swapResult.fromTokenBalanceChange =
-              tokenInfo.balance - BigInt(tokenBalance.balance);
-          } else {
-            swapResult.toTokenBalanceChange =
-              tokenInfo.balance - BigInt(tokenBalance.balance);
-          }
           tokenBalance.balance = tokenInfo.balance.toString();
           tokenBalance.currentAllowance = tokenInfo.allowance.toString();
           this.logger.log(
