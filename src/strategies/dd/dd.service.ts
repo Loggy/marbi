@@ -16,7 +16,6 @@ import { Initialize } from "src/entities/initialize.entity";
 import { EVMSwapParams } from "src/blockchain/evm/providers/okx";
 import { TokenBalance } from "src/entities/token-balance.entity";
 import { AppStateService } from "../../settings/app-state.service";
-import { parseCompactSignature } from "viem";
 import { BybitPriceService } from '../../shared/services/bybit-price.service';
 
 const NETWORK_TO_EXPLORER = {
@@ -240,11 +239,11 @@ export class DDService implements OnModuleInit {
     }
   }
 
-  private async calculateGasPriceUSD(networkName: string, gasPayed: number): Promise<string> {
+  private async calculateGasPayedUSD(networkName: string, gasPayed: number): Promise<string> {
     try {
       const nativeToken = NETWORK_TO_NATIVE_TOKEN[networkName as keyof typeof NETWORK_TO_NATIVE_TOKEN];
       const price = await this.bybitPriceService.getPrice(nativeToken);
-      return (Number(gasPayed) * Number(price)).toFixed(2);
+      return (gasPayed * Number(price)).toFixed(2);
     } catch (error) {
       this.logger.log(`Failed to calculate gas price in USD: ${error.message}`, 'warn');
       return '0';
@@ -396,9 +395,9 @@ ${new Date().toUTCString()}`);
       });
 
       // Calculate gas prices in USD
-      const [network0GasPriceUSD, network1GasPriceUSD] = await Promise.all([
-        this.calculateGasPriceUSD(params.config.Network0.NetworkName, network0TxResult.gasPayed),
-        this.calculateGasPriceUSD(params.config.Network1.NetworkName, network1TxResult.gasPayed)
+      const [network0GasPayedUSD, network1GasPayedUSD] = await Promise.all([
+        this.calculateGasPayedUSD(params.config.Network0.NetworkName, network0TxResult.gasPayed),
+        this.calculateGasPayedUSD(params.config.Network1.NetworkName, network1TxResult.gasPayed)
       ]);
 
       order.status = "COMPLETED";
@@ -418,7 +417,7 @@ ${new Date().toUTCString()}`);
           ).toString(),
           time: (network0TxResult.endTimestamp - startTime.getTime()) / 1000,
           gasPayed: network0TxResult.gasPayed,
-          gasPriceUSD: network0GasPriceUSD
+          gasPayedUSD: network0GasPayedUSD
         },
         network1: {
           fromToken: params.config.Network1.swapParams.fromToken,
@@ -435,7 +434,7 @@ ${new Date().toUTCString()}`);
           ).toString(),
           time: (network1TxResult.endTimestamp - startTime.getTime()) / 1000,
           gasPayed: network1TxResult.gasPayed,
-          gasPriceUSD: network1GasPriceUSD
+          gasPayedUSD: network1GasPayedUSD
         },
       };
 
@@ -447,7 +446,23 @@ ${new Date().toUTCString()}`);
       const network1Message = this.generateMessageForTelegram(
         order.result.network1
       );
-
+      const quoteTokenPrice = (params.spread_entry.new_sell_price + params.spread_entry.new_buy_price) / 2;
+      const baseTokenPrice = await this.bybitPriceService.getPrice(params.config.Network0.StartTokenTiker);
+      const baseTokenDif =
+        order.result.network0.fromToken === params.config.Network0.StartTokenAddress
+          ? order.result.network0.fromToken + order.result.network1.toToken
+          : order.result.network1.fromToken + order.result.network0.toToken;
+      const quoteTokenDif =
+        order.result.network0.toToken === params.config.Network0.FinishTokenAddress
+          ? order.result.network0.toToken + order.result.network1.fromToken
+          : order.result.network1.toToken + order.result.network0.fromToken;
+      const baseTokenDifInUSD = baseTokenDif * Number(baseTokenPrice);
+      const quoteTokenDifInUSD = quoteTokenDif * Number(quoteTokenPrice);
+      const resultMessage = `
+      baseTokenDiffInUSD: ${baseTokenDifInUSD}
+      quoteTokenDiffInUSD: ${quoteTokenDifInUSD}
+      overallResult: ${baseTokenDifInUSD + quoteTokenDifInUSD - (order.result.network0.gasPriceUSD + order.result.network1.gasPriceUSD)}
+      `;
       const message = `<b>${params.config.Ticker}</b> ${startTimeUTC}
 ${network0Message}
 ${network1Message}`;
@@ -484,8 +499,8 @@ change: ${result.fromTokenBalanceChange}
 to: <code>${result.toToken}</code>
 change: ${result.toTokenBalanceChange}
 time: ${result.time.toFixed(2)}s
-
-gasPayed: ${result.gasPayed} $${nativeToken} ($${result.gasPriceUSD})
+gasPayedInUSD: ${result.gasPriceUSD} $USD
+gasPayed: ${result.gasPayed} $${nativeToken}
 `;
 
     return message;
