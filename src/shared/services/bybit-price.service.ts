@@ -4,7 +4,9 @@ import axios, { AxiosInstance } from 'axios';
 interface BybitPriceResponse {
   retCode: number;
   result: {
-    price: string;
+    list: {
+      lastPrice: string;
+    }[];
   };
   retMsg: string;
 }
@@ -42,7 +44,7 @@ export class BybitPriceService {
       if (response.data.retCode !== 0) {
         throw new Error(`Bybit API error: ${response.data.retMsg}`);
       }
-      return response.data.result.price;
+      return response.data.result.list[0].lastPrice;
     } catch (error) {
       this.logger.error(`Failed to fetch price for ${symbol}: ${error.message}`);
       throw new Error(`Failed to fetch price for ${symbol}`);

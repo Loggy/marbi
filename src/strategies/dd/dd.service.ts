@@ -240,7 +240,7 @@ export class DDService implements OnModuleInit {
     }
   }
 
-  private async calculateGasPriceUSD(networkName: string, gasPayed: string): Promise<string> {
+  private async calculateGasPriceUSD(networkName: string, gasPayed: number): Promise<string> {
     try {
       const nativeToken = NETWORK_TO_NATIVE_TOKEN[networkName as keyof typeof NETWORK_TO_NATIVE_TOKEN];
       const price = await this.bybitPriceService.getPrice(nativeToken);
