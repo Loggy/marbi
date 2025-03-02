@@ -29,6 +29,9 @@ export class BybitPriceService {
    * @throws Error if the API request fails or returns invalid data
    */
   public async getPrice(symbol: string): Promise<string> {
+    if (symbol === 'USDC') {
+      return Promise.resolve('1');
+    }
     try {
       const response = await this.client.get<BybitPriceResponse>(
         `/v5/market/tickers`,
