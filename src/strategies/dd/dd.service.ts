@@ -17,6 +17,7 @@ import { EVMSwapParams } from "src/blockchain/evm/providers/okx";
 import { TokenBalance } from "src/entities/token-balance.entity";
 import { AppStateService } from "../../settings/app-state.service";
 import { parseCompactSignature } from "viem";
+import { BybitPriceService } from '../../shared/services/bybit-price.service';
 
 const NETWORK_TO_EXPLORER = {
   solana: "https://solscan.io/tx/",
@@ -60,7 +61,8 @@ export class DDService implements OnModuleInit {
     private dexRouterService: DexRouterService,
     private settingsService: SettingsService,
     private logger: LoggerService,
-    private appStateService: AppStateService
+    private appStateService: AppStateService,
+    private bybitPriceService: BybitPriceService
   ) {}
 
   async onModuleInit() {
@@ -238,6 +240,17 @@ export class DDService implements OnModuleInit {
     }
   }
 
+  private async calculateGasPriceUSD(networkName: string, gasPayed: string): Promise<string> {
+    try {
+      const nativeToken = NETWORK_TO_NATIVE_TOKEN[networkName as keyof typeof NETWORK_TO_NATIVE_TOKEN];
+      const price = await this.bybitPriceService.getPrice(nativeToken);
+      return (Number(gasPayed) * Number(price)).toFixed(2);
+    } catch (error) {
+      this.logger.log(`Failed to calculate gas price in USD: ${error.message}`, 'warn');
+      return '0';
+    }
+  }
+
   async createOrder(params: CreateOrderDto): Promise<Order> {
     const startTime = new Date();
 
@@ -382,6 +395,12 @@ ${new Date().toUTCString()}`);
         },
       });
 
+      // Calculate gas prices in USD
+      const [network0GasPriceUSD, network1GasPriceUSD] = await Promise.all([
+        this.calculateGasPriceUSD(params.config.Network0.NetworkName, network0TxResult.gasPayed),
+        this.calculateGasPriceUSD(params.config.Network1.NetworkName, network1TxResult.gasPayed)
+      ]);
+
       order.status = "COMPLETED";
       order.result = {
         network0: {
@@ -399,6 +418,7 @@ ${new Date().toUTCString()}`);
           ).toString(),
           time: (network0TxResult.endTimestamp - startTime.getTime()) / 1000,
           gasPayed: network0TxResult.gasPayed,
+          gasPriceUSD: network0GasPriceUSD
         },
         network1: {
           fromToken: params.config.Network1.swapParams.fromToken,
@@ -415,6 +435,7 @@ ${new Date().toUTCString()}`);
           ).toString(),
           time: (network1TxResult.endTimestamp - startTime.getTime()) / 1000,
           gasPayed: network1TxResult.gasPayed,
+          gasPriceUSD: network1GasPriceUSD
         },
       };
 
@@ -464,7 +485,7 @@ to: <code>${result.toToken}</code>
 change: ${result.toTokenBalanceChange}
 time: ${result.time.toFixed(2)}s
 
-gasPayed: ${result.gasPayed} $${nativeToken}
+gasPayed: ${result.gasPayed} $${nativeToken} ($${result.gasPriceUSD})
 `;
 
     return message;

@@ -10,6 +10,7 @@ import { DexRouterModule } from "../../dex-router/dex-router.module";
 import { LoggerModule } from "../../logger/logger.module";
 import { SettingsModule } from "../../settings/settings.module";
 import { Initialize } from "src/entities/initialize.entity";
+import { SharedModule } from '../../shared/shared.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { Initialize } from "src/entities/initialize.entity";
     DexRouterModule,
     LoggerModule,
     SettingsModule,
+    SharedModule,
   ],
   controllers: [DDController],
   providers: [DDService],
