@@ -239,14 +239,14 @@ export class DDService implements OnModuleInit {
     }
   }
 
-  private async calculateGasPayedUSD(networkName: string, gasPayed: number): Promise<string> {
+  private async calculateGasPayedUSD(networkName: string, gasPayed: number): Promise<number> {
     try {
       const nativeToken = NETWORK_TO_NATIVE_TOKEN[networkName as keyof typeof NETWORK_TO_NATIVE_TOKEN];
       const price = await this.bybitPriceService.getPrice(nativeToken);
-      return (gasPayed * Number(price)).toFixed(2);
+      return (gasPayed * Number(price));
     } catch (error) {
       this.logger.log(`Failed to calculate gas price in USD: ${error.message}`, 'warn');
-      return '0';
+      return 0;
     }
   }
 
@@ -448,22 +448,28 @@ ${new Date().toUTCString()}`);
       );
       const quoteTokenPrice = (params.spread_entry.new_sell_price + params.spread_entry.new_buy_price) / 2;
       const baseTokenPrice = await this.bybitPriceService.getPrice(params.config.Network0.StartTokenTiker);
-      const baseTokenDif =
+      const baseTokenDiff =
         order.result.network0.fromToken === params.config.Network0.StartTokenAddress
-          ? order.result.network0.fromToken + order.result.network1.toToken
-          : order.result.network1.fromToken + order.result.network0.toToken;
-      const quoteTokenDif =
+          ? Number(order.result.network0.fromTokenBalanceChange) + Number(order.result.network1.toTokenBalanceChange)
+          : Number(order.result.network1.fromTokenBalanceChange) + Number(order.result.network0.toTokenBalanceChange);
+      const quoteTokenDiff =
         order.result.network0.toToken === params.config.Network0.FinishTokenAddress
-          ? order.result.network0.toToken + order.result.network1.fromToken
-          : order.result.network1.toToken + order.result.network0.fromToken;
-      const baseTokenDifInUSD = baseTokenDif * Number(baseTokenPrice);
-      const quoteTokenDifInUSD = quoteTokenDif * Number(quoteTokenPrice);
+          ? Number(order.result.network0.toTokenBalanceChange) + Number(order.result.network1.fromTokenBalanceChange)
+          : Number(order.result.network1.toTokenBalanceChange) + Number(order.result.network0.fromTokenBalanceChange);
+      const baseTokenDiffInUSD = baseTokenDiff * Number(baseTokenPrice);
+      const quoteTokenDiffInUSD = quoteTokenDiff * Number(quoteTokenPrice);
       const resultMessage = `
-      baseTokenDiffInUSD: ${baseTokenDifInUSD}
-      quoteTokenDiffInUSD: ${quoteTokenDifInUSD}
-      overallResult: ${baseTokenDifInUSD + quoteTokenDifInUSD - (order.result.network0.gasPriceUSD + order.result.network1.gasPriceUSD)}
+baseTokenDiff: <b>${baseTokenDiff}</b>
+baseTokenDiffInUSD: <b>${baseTokenDiffInUSD.toFixed(3)} $USD</b>
+
+qouteTokenDiff: <b>${quoteTokenDiff}</b>
+quoteTokenDiffInUSD: <b>${quoteTokenDiffInUSD.toFixed(3)} $USD</b>
+
+overallResult: <b>${(baseTokenDiffInUSD + quoteTokenDiffInUSD - (order.result.network0.gasPayedUSD + order.result.network1.gasPayedUSD)).toFixed(3)} $USD</b>
       `;
       const message = `<b>${params.config.Ticker}</b> ${startTimeUTC}
+
+${resultMessage}
 ${network0Message}
 ${network1Message}`;
 
@@ -490,8 +496,7 @@ ${network1Message}`;
 
   private generateMessageForTelegram(result: any): string {
     const nativeToken = NETWORK_TO_NATIVE_TOKEN[result.networkName as keyof typeof NETWORK_TO_NATIVE_TOKEN];
-    const message = `
-${result.networkName} <a href="${NETWORK_TO_EXPLORER[result.networkName]}${result.txid}">Explorer</a>
+    const message = `${result.networkName} <a href="${NETWORK_TO_EXPLORER[result.networkName]}${result.txid}">Explorer</a>
 
 txId: <code>${result.txid}</code>
 from: <code>${result.fromToken}</code>
@@ -499,7 +504,7 @@ change: ${result.fromTokenBalanceChange}
 to: <code>${result.toToken}</code>
 change: ${result.toTokenBalanceChange}
 time: ${result.time.toFixed(2)}s
-gasPayedInUSD: ${result.gasPriceUSD} $USD
+gasPayedInUSD: <b>${result.gasPayedUSD.toFixed(3)} $USD</b>
 gasPayed: ${result.gasPayed} $${nativeToken}
 `;
 
