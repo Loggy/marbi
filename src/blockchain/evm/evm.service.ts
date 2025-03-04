@@ -58,7 +58,7 @@ const CHAIN_CLIENTS: ChainClients = {
 };
 
 const CHAIN_NAME_TO_ID = {
-  mainnet: "1",
+  ethereum: "1",
   base: "8453",
   arbitrum: "42161",
   bsc: "56",
