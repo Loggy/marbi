@@ -1,6 +1,194 @@
 {
   "openapi": "3.0.0",
   "paths": {
+    "/evm-listener/configure": {
+      "post": {
+        "operationId": "EVMListenerController_configureChains",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigureChainsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Chains configured successfully"
+          },
+          "400": {
+            "description": "Invalid configuration"
+          }
+        },
+        "summary": "Configure chains to monitor for new blocks",
+        "tags": [
+          "EVM Listener"
+        ]
+      }
+    },
+    "/evm-listener/chain": {
+      "post": {
+        "operationId": "EVMListenerController_addChain",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChainConfigDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Chain added successfully"
+          },
+          "400": {
+            "description": "Failed to add chain"
+          }
+        },
+        "summary": "Add a single chain to monitor",
+        "tags": [
+          "EVM Listener"
+        ]
+      }
+    },
+    "/evm-listener/chain/{chainId}": {
+      "delete": {
+        "operationId": "EVMListenerController_removeChain",
+        "parameters": [
+          {
+            "name": "chainId",
+            "required": true,
+            "in": "path",
+            "description": "The chain ID to remove",
+            "schema": {
+              "example": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Chain removed successfully"
+          },
+          "404": {
+            "description": "Chain not found"
+          }
+        },
+        "summary": "Remove a chain from monitoring",
+        "tags": [
+          "EVM Listener"
+        ]
+      }
+    },
+    "/evm-listener/chain/{chainId}/restart": {
+      "post": {
+        "operationId": "EVMListenerController_restartChain",
+        "parameters": [
+          {
+            "name": "chainId",
+            "required": true,
+            "in": "path",
+            "description": "The chain ID to restart",
+            "schema": {
+              "example": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Chain restarted successfully"
+          },
+          "404": {
+            "description": "Chain not found"
+          }
+        },
+        "summary": "Restart monitoring for a specific chain",
+        "tags": [
+          "EVM Listener"
+        ]
+      }
+    },
+    "/evm-listener/status": {
+      "get": {
+        "operationId": "EVMListenerController_getStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Status retrieved successfully"
+          }
+        },
+        "summary": "Get status of all monitored chains",
+        "tags": [
+          "EVM Listener"
+        ]
+      }
+    },
+    "/evm-listener/status/{chainId}": {
+      "get": {
+        "operationId": "EVMListenerController_getChainStatus",
+        "parameters": [
+          {
+            "name": "chainId",
+            "required": true,
+            "in": "path",
+            "description": "The chain ID to check",
+            "schema": {
+              "example": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Status retrieved successfully"
+          },
+          "404": {
+            "description": "Chain not found"
+          }
+        },
+        "summary": "Get status of a specific chain",
+        "tags": [
+          "EVM Listener"
+        ]
+      }
+    },
+    "/evm-listener/chains": {
+      "get": {
+        "operationId": "EVMListenerController_getConfiguredChains",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Chain IDs retrieved successfully"
+          }
+        },
+        "summary": "Get list of all configured chain IDs",
+        "tags": [
+          "EVM Listener"
+        ]
+      }
+    },
+    "/evm-listener/stop-all": {
+      "post": {
+        "operationId": "EVMListenerController_stopAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "All chains stopped successfully"
+          }
+        },
+        "summary": "Stop monitoring all chains",
+        "tags": [
+          "EVM Listener"
+        ]
+      }
+    },
     "/solana/check-balances": {
       "post": {
         "operationId": "SolanaController_checkAllBalances",
@@ -216,6 +404,40 @@
   "servers": [],
   "components": {
     "schemas": {
+      "ChainConfigDto": {
+        "type": "object",
+        "properties": {
+          "chainId": {
+            "type": "number",
+            "description": "The chain ID (e.g., 1 for Ethereum, 56 for BSC)",
+            "example": 1
+          },
+          "rpcUrl": {
+            "type": "string",
+            "description": "WebSocket RPC URL for the chain",
+            "example": "wss://eth-mainnet.ws.alchemyapi.io/v2/YOUR-API-KEY"
+          }
+        },
+        "required": [
+          "chainId",
+          "rpcUrl"
+        ]
+      },
+      "ConfigureChainsDto": {
+        "type": "object",
+        "properties": {
+          "chains": {
+            "description": "Array of chain configurations to monitor",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChainConfigDto"
+            }
+          }
+        },
+        "required": [
+          "chains"
+        ]
+      },
       "AmountIn": {
         "type": "object",
         "properties": {
