@@ -14,15 +14,24 @@ export interface BlockEvent {
 export interface SwapEvent {
   chainId: number;
   blockNumber: string;
-  timestamp: string;
+  blockTimestamp: number;
+  timestamp: number;
   hash: string;
   senderAddress: string;
-  fromToken: string;
-  toToken: string;
-  fromTokenAmount: string; // Hex string representation for serialization
-  toTokenAmount: string; // Hex string representation for serialization
+  fromTokenAmount: string; // String representation of int256 (can be negative)
+  toTokenAmount: string; // String representation of int256 (can be negative)
   poolAddress: string;
+  dex: string;
 }
+
+export interface UniswapSwapEvent extends SwapEvent {
+  sqrtPriceX96: string;
+}
+
+const UNISWAP_V2_SWAP_EVENT_TOPIC = "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822";
+const UNISWAP_V3_SWAP_EVENT_TOPIC = "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67";
+const UNISWAP_V4_SWAP_EVENT_TOPIC = "0x40e9cecb9f5f1f1c5b9c97dec2917b7ee92e57ba5563708daca94dd84ad7112f";
+const PANCAKE_V3_EVENT_TOPIC      = "0x19b47279256b2a23a1665c810c8d55a1758940ee09377d4f8d26497a3577dc83";
 
 /**
  * BlockWorkerService manages WebSocket connection to a single EVM chain
@@ -164,25 +173,96 @@ export class BlockWorkerService {
         toBlock: block.number,
       });
       const swapEvents: SwapEvent[] = [];
-      for (const [index, log] of logs.entries()) {
-         if (log.topics?.length && log.topics[0]?.toLowerCase() === "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67") {
-          const fromToken = logs[index + 1].address;
-          const toToken = logs[index + 2].address;
-          // Reason: Keep as hex strings for JSON serialization, convert to BigInt in processor if needed
-          const fromTokenAmount = logs[index + 1].data;
-          const toTokenAmount = logs[index + 2].data;
-          swapEvents.push({
-            chainId: this.chainId,
-            blockNumber: block.number.toString(),
-            timestamp: block.timestamp.toString(),
-            hash: block.hash,
-            senderAddress: log.topics[1],
-            fromToken: fromToken,
-            toToken: toToken,
-            fromTokenAmount: fromTokenAmount,
-            toTokenAmount: toTokenAmount,
-            poolAddress: log.address,
-          });
+      for (const log of logs) {
+        if (log.topics?.length) {
+          const topic0 = log.topics[0]?.toLowerCase();
+          const data = log.data.substring(2); // Remove the 0x prefix
+          switch (topic0) {
+            case UNISWAP_V2_SWAP_EVENT_TOPIC:
+              const amount0In: string = data.slice(0, 64);
+              const amount1In: string = data.slice(64, 128);
+              const amount0Out: string = data.slice(128, 192);
+              const amount1Out: string = data.slice(192, 256);
+              const fromTokenAmount = BigInt('0x' + amount0In) > 0n ? '0x' + amount0In : '0x' + amount1In;
+              const toTokenAmount = BigInt('0x' + amount0Out) > 0n ? '0x' + amount0Out : '0x' + amount1Out;
+              const uniswapV2SwapEvent: SwapEvent = {
+                chainId: this.chainId,
+                blockNumber: block.number.toString(),
+                blockTimestamp: Number(block.timestamp),
+                timestamp: Date.now(),
+                hash: block.hash,
+                senderAddress: log.topics[1],
+                fromTokenAmount: BigInt(fromTokenAmount).toString(),
+                toTokenAmount: BigInt(toTokenAmount).toString(),
+                poolAddress: log.address,
+                dex: "uniswapV2",
+              };
+              swapEvents.push(uniswapV2SwapEvent);
+              break;
+            case UNISWAP_V3_SWAP_EVENT_TOPIC:
+            // Decode signed int256 values (two's complement)
+            const amount0 = this.decodeInt256('0x' + data.slice(0, 64));
+            const amount1 = this.decodeInt256('0x' + data.slice(64, 128));
+            
+            const uniswapV3SwapEvent: UniswapSwapEvent = {
+              chainId: this.chainId,
+              blockNumber: block.number.toString(),
+              blockTimestamp: Number(block.timestamp),
+              timestamp: Date.now(),
+              hash: block.hash,
+              senderAddress: log.topics[1],
+              fromTokenAmount: amount0.toString(),
+              toTokenAmount: amount1.toString(),
+              poolAddress: log.address,
+              dex: "uniswapV3",
+              sqrtPriceX96: '0x' + data.slice(128, 192),
+
+            };
+            swapEvents.push(uniswapV3SwapEvent);
+            break;
+            case UNISWAP_V4_SWAP_EVENT_TOPIC:
+              // Decode signed int256 values (two's complement)
+              const v4Amount0 = this.decodeInt256('0x' + data.slice(0, 64));
+              const v4Amount1 = this.decodeInt256('0x' + data.slice(64, 128));
+              
+              const uniswapV4SwapEvent: UniswapSwapEvent = {
+                chainId: this.chainId,
+                blockNumber: block.number.toString(),
+                blockTimestamp: Number(block.timestamp),
+                timestamp: Date.now(),
+                hash: block.hash,
+                senderAddress: log.topics[2],
+                fromTokenAmount: v4Amount0.toString(),
+                toTokenAmount: v4Amount1.toString(),
+                poolAddress: log.topics[1],
+                dex: "uniswapV4",
+                sqrtPriceX96: '0x' + data.slice(128, 192),
+              };
+              swapEvents.push(uniswapV4SwapEvent);
+              break;
+            case PANCAKE_V3_EVENT_TOPIC:
+              // Decode signed int256 values (two's complement)
+              const pancakeAmount0 = this.decodeInt256('0x' + data.slice(0, 64));
+              const pancakeAmount1 = this.decodeInt256('0x' + data.slice(64, 128));
+              
+              const pancakeV3SwapEvent: UniswapSwapEvent = {
+                chainId: this.chainId,
+                blockNumber: block.number.toString(),
+                blockTimestamp: Number(block.timestamp),
+                timestamp: Date.now(),
+                hash: block.hash,
+                senderAddress: log.topics[1],
+                fromTokenAmount: pancakeAmount0.toString(),
+                toTokenAmount: pancakeAmount1.toString(),
+                poolAddress: log.address,
+                dex: "pancakeV3",
+                sqrtPriceX96: '0x' + data.slice(128, 192),
+              };
+              swapEvents.push(pancakeV3SwapEvent);
+              break;
+            default:
+              break;
+          }
         }
       }
 
@@ -244,4 +324,41 @@ export class BlockWorkerService {
       this.stop();
     }
   }
+
+  /**
+   * Decodes a bytes32 hex string as a signed int256 (two's complement).
+   * Handles negative numbers that are padded with 'ffffff...'
+   * 
+   * @param hex - Hex string (with or without '0x' prefix)
+   * @returns Decoded bigint value (can be negative)
+   */
+  private decodeInt256(hex: string): bigint {
+    // Remove '0x' prefix if present
+    const cleanHex = hex.startsWith('0x') ? hex.slice(2) : hex;
+    
+    // Parse as unsigned bigint first
+    const unsigned = BigInt('0x' + cleanHex);
+    
+    // Check if the most significant bit is set (negative number in two's complement)
+    // For 256-bit numbers, check if bit 255 is set
+    const maxInt256 = BigInt(2) ** BigInt(256);
+    const signBit = BigInt(2) ** BigInt(255);
+    
+    if (unsigned >= signBit) {
+      // Negative number: convert from two's complement
+      // Formula: value - 2^256
+      return unsigned - maxInt256;
+    }
+    
+    // Positive number
+    return unsigned;
+  }
 }
+
+
+
+
+// {
+//   "chainId": 1,
+//   "rpcUrl": "wss://eth-mainnet.g.alchemy.com/v2/YAPib3PJfBOjlj9pkJwU3MoVW7t3G2uX"
+// },

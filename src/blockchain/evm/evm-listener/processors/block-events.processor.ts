@@ -57,13 +57,12 @@ export class BlockEventsProcessor {
       const swapData = job.data;
       
       // Reason: Convert hex string amounts to BigInt for calculations
-      const fromAmount = BigInt(swapData.fromTokenAmount);
-      const toAmount = BigInt(swapData.toTokenAmount);
-      
       this.logger.log(
         `Swap detected - Chain: ${swapData.chainId}, Pool: ${swapData.poolAddress}, ` +
-        `From: ${swapData.fromToken} (${fromAmount.toString()}), ` +
-        `To: ${swapData.toToken} (${toAmount.toString()})`
+        `From: ${swapData.fromTokenAmount}, ` +
+        `To: ${swapData.toTokenAmount}` +
+        `Block Number: ${swapData.blockNumber}` +
+        `Dex: ${swapData.dex}`
       );
       
       return { success: true };
