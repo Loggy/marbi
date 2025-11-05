@@ -1,76 +1,97 @@
 import { Processor, Process } from "@nestjs/bull";
 import { Job } from "bull";
 import { LoggerService } from "../../../../logger/logger.service";
-import { BlockEvent } from "../block-worker.service";
+import { PoolService } from "../../../../pool/pool.service";
+import { SwapEvent } from "../block-worker.service";
 
 /**
- * Example processor for consuming block events from the queue.
- * You can create your own processors to handle block events for your specific use cases.
+ * Processor for consuming block events from the queue.
+ * Enriches swap events with pool data and calculates USD values for stable pairs.
  */
 @Processor("block-events")
 export class BlockEventsProcessor {
-  constructor(private readonly logger: LoggerService) {}
+  constructor(
+    private readonly logger: LoggerService,
+    private readonly poolService: PoolService
+  ) {}
 
   /**
-   * Process new block events
-   * Reason: Central handler for all block notifications across all monitored chains
-   */
-  @Process("new-block")
-  async handleNewBlock(job: Job<BlockEvent>) {
-    const { chainId, blockNumber, timestamp, hash } = job.data;
-
-    try {
-      this.logger.log(
-        `Processing block event - Chain: ${chainId}, Block: #${blockNumber.toString()}, Hash: ${hash}`
-      );
-
-      // Example: Add your custom logic here
-      // - Fetch transactions from the block
-      // - Monitor for specific events
-      // - Update internal state
-      // - Trigger other workflows
-
-      // Example timestamp conversion
-      const blockDate = new Date(Number(timestamp) * 1000);
-      this.logger.log(
-        `Block timestamp: ${blockDate.toISOString()}`
-      );
-
-      // Return success
-      return { success: true, chainId, blockNumber: blockNumber.toString() };
-    } catch (error) {
-      this.logger.log(
-        `Failed to process block ${blockNumber.toString()} on chain ${chainId}: ${error.message}`,
-        "error"
-      );
-      throw error; // Bull will retry based on job options
-    }
-  }
-
-  /**
-   * Process new swap events
-   * Reason: Handler for swap events detected in monitored blocks
+   * Process new swap events with enhanced pool and token analysis
+   * Reason: Enriches swap data with database pool information and calculates USD values
    */
   @Process("new-swap")
-  async handleNewSwap(job: Job<any>) {
+  async handleNewSwap(job: Job<SwapEvent>) {
     try {
       const swapData = job.data;
-      
-      // Reason: Convert hex string amounts to BigInt for calculations
-      this.logger.log(
-        `Swap detected - Chain: ${swapData.chainId}, Pool: ${swapData.poolAddress}, \n` +
-        `Token0: ${swapData.token0Amount},\n` +
-        `Token1: ${swapData.token1Amount},\n` +
-        `Block Number: ${swapData.blockNumber},\n` +
-        `Dex: ${swapData.dex}\n`
+      const pool = await this.poolService.findPoolByAddress(
+        swapData.poolAddress,
+        swapData.chainId
       );
+      if (!pool) {
+        return { success: true, skipped: true, reason: "pool_not_found" };
+      }
+      const token0IsStable = pool.token0.stable === true;
+      const token1IsStable = pool.token1.stable === true;
+      const hasStableToken = token0IsStable || token1IsStable;
+      const token0Amount = BigInt(swapData.token0Amount);
+      const token1Amount = BigInt(swapData.token1Amount);
+      const token0Decimals = pool.token0.addresses?.find(
+        (addr) => addr.chainId === swapData.chainId
+      )?.decimals || 18;
+      const token1Decimals = pool.token1.addresses?.find(
+        (addr) => addr.chainId === swapData.chainId
+      )?.decimals || 18;
+      const formatAmount = (amount: bigint, decimals: number): string => {
+        const isNegative = amount < 0n;
+        const absoluteAmount = isNegative ? -amount : amount;
+        const divisor = 10n ** BigInt(decimals);
+        const integerPart = absoluteAmount / divisor;
+        const fractionalPart = absoluteAmount % divisor;
+        const fractionalString = fractionalPart.toString().padStart(decimals, "0");
+        const trimmedFractional = fractionalString.slice(0, 6).replace(/0+$/, "");
+        const sign = isNegative ? "-" : "";
+        return trimmedFractional.length > 0
+          ? `${sign}${integerPart}.${trimmedFractional}`
+          : `${sign}${integerPart}`;
+      };
+      const token0Formatted = formatAmount(token0Amount, token0Decimals);
+      const token1Formatted = formatAmount(token1Amount, token1Decimals);
+      if (hasStableToken) {
+        const stableToken = token0IsStable ? pool.token0 : pool.token1;
+        const nonStableToken = token0IsStable ? pool.token1 : pool.token0;
+        const nonStableAmount = token0IsStable ? token1Amount : token0Amount;
+        const stableFormatted = token0IsStable ? token0Formatted : token1Formatted;
+        const swapSizeUsd = parseFloat(stableFormatted.replace("-", ""));
+        const direction = nonStableAmount < 0n ? "BUY" : "SELL";
+        this.logger.log(
+          `Swap detected - Chain: ${swapData.chainId}\n` +
+          `Pool: ${swapData.poolAddress}\n` +
+          `DEX: ${swapData.dex}\n` +
+          `Stable Token: ${stableToken.symbol}\n` +
+          `Non-Stable Token: ${nonStableToken.symbol}\n` +
+          `Swap Size: $${swapSizeUsd.toFixed(2)}\n` +
+          `Direction: ${direction} ${nonStableToken.symbol}\n` +
+          `${pool.token0.symbol} Amount: ${token0Formatted}\n` +
+          `${pool.token1.symbol} Amount: ${token1Formatted}\n` +
+          `Block: ${swapData.blockNumber}`
+        );
+      } else {
+        this.logger.log(
+          `Swap detected (no stable) - Chain: ${swapData.chainId}\n` +
+          `Pool: ${swapData.poolAddress}\n` +
+          `DEX: ${swapData.dex}\n` +
+          `${pool.token0.symbol} Amount: ${token0Formatted}\n` +
+          `${pool.token1.symbol} Amount: ${token1Formatted}\n` +
+          `Block: ${swapData.blockNumber}`
+        );
+      }
       return { success: true };
     } catch (error) {
       this.logger.log(
         `Failed to process swap event: ${error.message}`,
         "error"
       );
-      throw error; // Bull will retry based on job options
+      throw error;
     }
   }
 }

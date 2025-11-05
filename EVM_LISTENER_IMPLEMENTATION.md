@@ -222,16 +222,6 @@ POST /evm-listener/chain
 // 2. Check status
 GET /evm-listener/status
 
-// 3. Create processor to consume events
-@Processor('block-events')
-export class MyProcessor {
-  @Process('new-block')
-  async handleBlock(job: Job<BlockEvent>) {
-    const { chainId, blockNumber } = job.data;
-    console.log(`New block on chain ${chainId}: ${blockNumber}`);
-  }
-}
-```
 
 ## Best Practices
 

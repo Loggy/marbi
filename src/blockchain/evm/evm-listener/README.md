@@ -142,26 +142,6 @@ Block events published to the `block-events` queue have the following structure:
 }
 ```
 
-## Consuming Block Events
-
-To consume block events in your application:
-
-```typescript
-import { Processor, Process } from '@nestjs/bull';
-import { Job } from 'bull';
-
-@Processor('block-events')
-export class BlockEventsProcessor {
-  @Process('new-block')
-  async handleNewBlock(job: Job) {
-    const { chainId, blockNumber, timestamp, hash } = job.data;
-    
-    console.log(`New block on chain ${chainId}: #${blockNumber}`);
-    
-    // Your processing logic here
-  }
-}
-```
 
 ## Error Handling
 

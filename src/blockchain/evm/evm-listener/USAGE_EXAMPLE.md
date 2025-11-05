@@ -219,40 +219,6 @@ export class ChainSpecificProcessor {
 }
 ```
 
-### Monitoring for Specific Events
-
-```typescript
-import { createPublicClient, http, parseAbiItem } from "viem";
-import { mainnet } from "viem/chains";
-
-@Processor("block-events")
-export class EventMonitorProcessor {
-  private client = createPublicClient({
-    chain: mainnet,
-    transport: http(process.env.MAINNET_RPC_URL),
-  });
-
-  @Process("new-block")
-  async handleNewBlock(job: Job<BlockEvent>) {
-    const { chainId, blockNumber, hash } = job.data;
-
-    if (chainId !== 1) return;
-
-    // Monitor for USDC Transfer events
-    const logs = await this.client.getLogs({
-      address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", // USDC
-      event: parseAbiItem("event Transfer(address indexed from, address indexed to, uint256 value)"),
-      fromBlock: blockNumber,
-      toBlock: blockNumber,
-    });
-
-    if (logs.length > 0) {
-      console.log(`Found ${logs.length} USDC transfers in block ${blockNumber}`);
-      // Process transfers
-    }
-  }
-}
-```
 
 ## Common WebSocket RPC Providers
 

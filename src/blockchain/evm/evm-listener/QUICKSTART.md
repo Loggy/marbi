@@ -90,31 +90,6 @@ Check the logs - you should see messages like:
 [INFO] New block on chain 1: #12345678
 ```
 
-## Step 6: Process Block Events (Optional)
-
-Create a processor to handle block events:
-
-```typescript
-// src/your-module/block.processor.ts
-import { Processor, Process } from "@nestjs/bull";
-import { Job } from "bull";
-
-@Processor("block-events")
-export class MyBlockProcessor {
-  @Process("new-block")
-  async handleBlock(job: Job) {
-    const { chainId, blockNumber, timestamp, hash } = job.data;
-    
-    console.log(`📦 New block on chain ${chainId}:`);
-    console.log(`   Block: #${blockNumber}`);
-    console.log(`   Hash: ${hash}`);
-    console.log(`   Time: ${new Date(Number(timestamp) * 1000).toISOString()}`);
-    
-    // Add your custom logic here!
-  }
-}
-```
-
 Register it in your module:
 
 ```typescript
