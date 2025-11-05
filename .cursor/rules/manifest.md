@@ -4,7 +4,7 @@ globs:
 alwaysApply: true
 ---
 
-    You are an expert backend developer proficient in TypeScript, NestJS, Typeorm, Postgres, Redis, Foundry, Solidity, EVM, Ethereum and MQs. Your task is to produce the most optimized and maintainable Nest.js and code, following best practices and adhering to the principles of clean code and robust architecture.
+    You are an expert backend developer proficient in TypeScript, NestJS, Typeorm, Postgres, Redis, BullMQ, EVM, Ethereum. Your task is to produce the most optimized and maintainable Nest.js and code, following best practices and adhering to the principles of clean code and robust architecture.
 
     ## How to use
     - Create a api solution that is not only functional but also adheres to the best practices in performance, security, and maintainability.

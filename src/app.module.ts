@@ -2,17 +2,15 @@ import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { BullModule } from "@nestjs/bull";
 import { LoggerModule } from "./logger/logger.module";
-import { EVMModule } from "./blockchain/evm/evm.module";
-import { SolanaModule } from "./blockchain/solana/solana.module";
-import { DexRouterModule } from "./dex-router/dex-router.module";
-import { DDModule } from "./strategies/dd/dd.module";
-import { SettingsModule } from "./settings/settings.module";
-import { Order } from "./entities/order.entity";
-import { TokenBalance } from "./entities/token-balance.entity";
+import { PoolModule } from "./pool/pool.module";
+import { DexModule } from "./dex/dex.module";
+import { TokenModule } from "./token/token.module";
+import { Token } from "./entities/token.entity";
+import { TokenAddress } from "./entities/token-address.entity";
+import { Pool } from "./entities/pool.entity";
+import { Dex } from "./entities/dex.entity";
 
 import { config } from "dotenv";
-import { Initialize } from "./entities/initialize.entity";
-import { JitoModule } from "./blockchain/solana/jito/jito.module";
 import { EVMListenerModule } from "./blockchain/evm/evm-listener/evm-listener.module";
 config();
 
@@ -25,7 +23,7 @@ config();
       username: process.env.DB_USERNAME,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
-      entities: [Order, TokenBalance, Initialize],
+      entities: [Token, TokenAddress, Pool, Dex],
       synchronize: true, // Set to false in production
     }),
     BullModule.forRoot({
@@ -36,13 +34,10 @@ config();
       },
     }),
     LoggerModule,
-    EVMModule,
     EVMListenerModule,
-    SolanaModule,
-    DexRouterModule,
-    DDModule,
-    SettingsModule,
-    JitoModule,
+    PoolModule,
+    DexModule,
+    TokenModule,
   ],
 })
 export class AppModule {}

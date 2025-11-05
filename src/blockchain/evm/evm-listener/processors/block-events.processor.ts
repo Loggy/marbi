@@ -58,13 +58,12 @@ export class BlockEventsProcessor {
       
       // Reason: Convert hex string amounts to BigInt for calculations
       this.logger.log(
-        `Swap detected - Chain: ${swapData.chainId}, Pool: ${swapData.poolAddress}, ` +
-        `From: ${swapData.fromTokenAmount}, ` +
-        `To: ${swapData.toTokenAmount}` +
-        `Block Number: ${swapData.blockNumber}` +
-        `Dex: ${swapData.dex}`
+        `Swap detected - Chain: ${swapData.chainId}, Pool: ${swapData.poolAddress}, \n` +
+        `Token0: ${swapData.token0Amount},\n` +
+        `Token1: ${swapData.token1Amount},\n` +
+        `Block Number: ${swapData.blockNumber},\n` +
+        `Dex: ${swapData.dex}\n`
       );
-      
       return { success: true };
     } catch (error) {
       this.logger.log(

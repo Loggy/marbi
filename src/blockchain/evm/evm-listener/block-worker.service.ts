@@ -18,8 +18,8 @@ export interface SwapEvent {
   timestamp: number;
   hash: string;
   senderAddress: string;
-  fromTokenAmount: string; // String representation of int256 (can be negative)
-  toTokenAmount: string; // String representation of int256 (can be negative)
+  token0Amount: string; // String representation of int256 (can be negative)
+  token1Amount: string; // String representation of int256 (can be negative)
   poolAddress: string;
   dex: string;
 }
@@ -183,8 +183,8 @@ export class BlockWorkerService {
               const amount1In: string = data.slice(64, 128);
               const amount0Out: string = data.slice(128, 192);
               const amount1Out: string = data.slice(192, 256);
-              const fromTokenAmount = BigInt('0x' + amount0In) > 0n ? '0x' + amount0In : '0x' + amount1In;
-              const toTokenAmount = BigInt('0x' + amount0Out) > 0n ? '0x' + amount0Out : '0x' + amount1Out;
+              const token0Amount = BigInt('0x' + amount0In) > 0n ? BigInt('0x' + amount0In) : -BigInt('0x' + amount0Out);
+              const token1Amount = BigInt('0x' + amount1In) > 0n ? BigInt('0x' + amount1In) : -BigInt('0x' + amount1Out);
               const uniswapV2SwapEvent: SwapEvent = {
                 chainId: this.chainId,
                 blockNumber: block.number.toString(),
@@ -192,8 +192,8 @@ export class BlockWorkerService {
                 timestamp: Date.now(),
                 hash: block.hash,
                 senderAddress: log.topics[1],
-                fromTokenAmount: BigInt(fromTokenAmount).toString(),
-                toTokenAmount: BigInt(toTokenAmount).toString(),
+                token0Amount: BigInt(token0Amount).toString(),
+                token1Amount: BigInt(token1Amount).toString(),
                 poolAddress: log.address,
                 dex: "uniswapV2",
               };
@@ -211,8 +211,8 @@ export class BlockWorkerService {
               timestamp: Date.now(),
               hash: block.hash,
               senderAddress: log.topics[1],
-              fromTokenAmount: amount0.toString(),
-              toTokenAmount: amount1.toString(),
+              token0Amount: amount0.toString(),
+              token1Amount: amount1.toString(),
               poolAddress: log.address,
               dex: "uniswapV3",
               sqrtPriceX96: '0x' + data.slice(128, 192),
@@ -232,8 +232,8 @@ export class BlockWorkerService {
                 timestamp: Date.now(),
                 hash: block.hash,
                 senderAddress: log.topics[2],
-                fromTokenAmount: v4Amount0.toString(),
-                toTokenAmount: v4Amount1.toString(),
+                token0Amount: v4Amount0.toString(),
+                token1Amount: v4Amount1.toString(),
                 poolAddress: log.topics[1],
                 dex: "uniswapV4",
                 sqrtPriceX96: '0x' + data.slice(128, 192),
@@ -252,8 +252,8 @@ export class BlockWorkerService {
                 timestamp: Date.now(),
                 hash: block.hash,
                 senderAddress: log.topics[1],
-                fromTokenAmount: pancakeAmount0.toString(),
-                toTokenAmount: pancakeAmount1.toString(),
+                token0Amount: pancakeAmount0.toString(),
+                token1Amount: pancakeAmount1.toString(),
                 poolAddress: log.address,
                 dex: "pancakeV3",
                 sqrtPriceX96: '0x' + data.slice(128, 192),

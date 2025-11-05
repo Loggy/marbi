@@ -189,122 +189,262 @@
         ]
       }
     },
-    "/solana/check-balances": {
+    "/pools": {
       "post": {
-        "operationId": "SolanaController_checkAllBalances",
-        "parameters": [],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Solana"
-        ]
-      }
-    },
-    "/solana/jup-swap": {
-      "post": {
-        "operationId": "SolanaController_jupSwap",
-        "parameters": [],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Solana"
-        ]
-      }
-    },
-    "/dd": {
-      "post": {
-        "operationId": "DDController_createOrder",
+        "operationId": "PoolController_create",
         "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateOrderDto"
+                "$ref": "#/components/schemas/CreatePoolDto"
               }
             }
           }
         },
         "responses": {
           "201": {
-            "description": "Order created successfully",
+            "description": "Pool created successfully",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "string"
-                    },
-                    "params": {
-                      "type": "object"
-                    },
-                    "result": {
-                      "type": "object"
-                    },
-                    "createdAt": {
-                      "type": "string",
-                      "format": "date-time"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Pool"
                 }
               }
             }
           },
           "400": {
-            "description": "Invalid input"
+            "description": "Invalid input data"
           },
-          "500": {
-            "description": "Internal server error"
+          "409": {
+            "description": "Pool already exists at this address/chain"
           }
         },
-        "summary": "Create a new DD order",
+        "summary": "Create a new Pool",
         "tags": [
-          "dd"
+          "pools"
         ]
-      }
-    },
-    "/dd/test": {
-      "post": {
-        "operationId": "DDController_test",
+      },
+      "get": {
+        "operationId": "PoolController_findAll",
         "parameters": [],
         "responses": {
-          "201": {
-            "description": ""
+          "200": {
+            "description": "List of all Pools",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Pool"
+                  }
+                }
+              }
+            }
           }
         },
+        "summary": "Get all Pools with their relations",
         "tags": [
-          "dd"
+          "pools"
         ]
       }
     },
-    "/settings/balance": {
+    "/pools/cross-chain": {
       "get": {
-        "operationId": "SettingsController_getBalance",
+        "description": "Given a token address on a specific chain, finds all pools (on any chain) that contain this canonical token",
+        "operationId": "PoolController_findCrossChainPools",
         "parameters": [
           {
-            "name": "chainId",
+            "name": "tokenAddress",
             "required": true,
             "in": "query",
-            "description": "Chain ID of the network",
+            "description": "Token address",
             "schema": {
               "type": "string"
             }
           },
           {
+            "name": "chainId",
+            "required": true,
+            "in": "query",
+            "description": "Chain ID where token exists",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of pools across all chains",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Pool"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Find all pools containing a token across all chains",
+        "tags": [
+          "pools"
+        ]
+      }
+    },
+    "/pools/on-chain": {
+      "get": {
+        "operationId": "PoolController_findPoolsOnChain",
+        "parameters": [
+          {
             "name": "tokenAddress",
             "required": true,
             "in": "query",
-            "description": "Address of the token",
+            "description": "Token address",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chainId",
+            "required": true,
+            "in": "query",
+            "description": "Chain ID",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of pools on the specified chain",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Pool"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Find pools on a specific chain containing a token",
+        "tags": [
+          "pools"
+        ]
+      }
+    },
+    "/pools/by-pair": {
+      "get": {
+        "operationId": "PoolController_findPoolsByPair",
+        "parameters": [
+          {
+            "name": "token0Address",
+            "required": true,
+            "in": "query",
+            "description": "First token address",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "token1Address",
+            "required": true,
+            "in": "query",
+            "description": "Second token address",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chainId",
+            "required": true,
+            "in": "query",
+            "description": "Chain ID",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of pools for this token pair",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Pool"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Find all pools for a token pair on a specific chain",
+        "tags": [
+          "pools"
+        ]
+      }
+    },
+    "/pools/by-address": {
+      "get": {
+        "operationId": "PoolController_findPoolByAddress",
+        "parameters": [
+          {
+            "name": "poolAddress",
+            "required": true,
+            "in": "query",
+            "description": "Pool contract address",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chainId",
+            "required": true,
+            "in": "query",
+            "description": "Chain ID",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pool found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pool"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pool not found"
+          }
+        },
+        "summary": "Find pool by its address on a specific chain",
+        "tags": [
+          "pools"
+        ]
+      }
+    },
+    "/pools/{id}": {
+      "get": {
+        "operationId": "PoolController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Pool UUID",
             "schema": {
               "type": "string"
             }
@@ -312,75 +452,579 @@
         ],
         "responses": {
           "200": {
-            "description": "Returns the token balance information",
+            "description": "Pool found",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "balance": {
-                      "type": "string"
-                    },
-                    "decimals": {
-                      "type": "number"
-                    },
-                    "currentAllowance": {
-                      "type": "string"
-                    },
-                    "minAllowance": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Pool"
                 }
               }
             }
+          },
+          "404": {
+            "description": "Pool not found"
           }
         },
-        "summary": "Get token balance",
+        "summary": "Get a Pool by ID with its relations",
         "tags": [
-          "settings"
+          "pools"
         ]
-      }
-    },
-    "/settings/initialize": {
-      "post": {
-        "operationId": "SettingsController_initialize",
-        "parameters": [],
+      },
+      "put": {
+        "operationId": "PoolController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Pool UUID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/InitializeDto"
+                "$ref": "#/components/schemas/UpdatePoolDto"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Settings initialized successfully",
+            "description": "Pool updated successfully",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "evm": {
-                      "type": "object",
-                      "additionalProperties": true
-                    },
-                    "solana": {
-                      "type": "object",
-                      "additionalProperties": true
-                    }
+                  "$ref": "#/components/schemas/Pool"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data"
+          },
+          "404": {
+            "description": "Pool not found"
+          },
+          "409": {
+            "description": "Pool already exists at this address/chain"
+          }
+        },
+        "summary": "Update a Pool",
+        "tags": [
+          "pools"
+        ]
+      },
+      "delete": {
+        "operationId": "PoolController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Pool UUID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Pool deleted successfully"
+          },
+          "404": {
+            "description": "Pool not found"
+          }
+        },
+        "summary": "Delete a Pool",
+        "tags": [
+          "pools"
+        ]
+      }
+    },
+    "/dexes": {
+      "post": {
+        "operationId": "DexController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDexDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "DEX created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dex"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data"
+          },
+          "409": {
+            "description": "DEX with same name already exists"
+          }
+        },
+        "summary": "Create a new DEX",
+        "tags": [
+          "dexes"
+        ]
+      },
+      "get": {
+        "operationId": "DexController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "List of all DEXes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Dex"
                   }
                 }
               }
             }
           }
         },
-        "summary": "Initialize settings",
+        "summary": "Get all DEXes",
         "tags": [
-          "settings"
+          "dexes"
+        ]
+      }
+    },
+    "/dexes/{id}": {
+      "get": {
+        "operationId": "DexController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "DEX UUID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "DEX found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dex"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "DEX not found"
+          }
+        },
+        "summary": "Get a DEX by ID",
+        "tags": [
+          "dexes"
+        ]
+      },
+      "put": {
+        "operationId": "DexController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "DEX UUID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDexDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "DEX updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dex"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data"
+          },
+          "404": {
+            "description": "DEX not found"
+          },
+          "409": {
+            "description": "DEX with same name already exists"
+          }
+        },
+        "summary": "Update a DEX",
+        "tags": [
+          "dexes"
+        ]
+      },
+      "delete": {
+        "operationId": "DexController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "DEX UUID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "DEX deleted successfully"
+          },
+          "404": {
+            "description": "DEX not found"
+          }
+        },
+        "summary": "Delete a DEX",
+        "tags": [
+          "dexes"
+        ]
+      }
+    },
+    "/tokens": {
+      "post": {
+        "operationId": "TokenController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Token created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Token"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data"
+          }
+        },
+        "summary": "Create a new Token with optional addresses",
+        "tags": [
+          "tokens"
+        ]
+      },
+      "get": {
+        "operationId": "TokenController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "List of all Tokens",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Token"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get all Tokens with their addresses",
+        "tags": [
+          "tokens"
+        ]
+      }
+    },
+    "/tokens/{id}": {
+      "get": {
+        "operationId": "TokenController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Token UUID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Token found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Token"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Token not found"
+          }
+        },
+        "summary": "Get a Token by ID with its addresses",
+        "tags": [
+          "tokens"
+        ]
+      },
+      "put": {
+        "operationId": "TokenController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Token UUID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Token"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data"
+          },
+          "404": {
+            "description": "Token not found"
+          }
+        },
+        "summary": "Update a Token",
+        "tags": [
+          "tokens"
+        ]
+      },
+      "delete": {
+        "operationId": "TokenController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Token UUID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Token deleted successfully"
+          },
+          "404": {
+            "description": "Token not found"
+          }
+        },
+        "summary": "Delete a Token",
+        "tags": [
+          "tokens"
+        ]
+      }
+    },
+    "/tokens/{id}/addresses": {
+      "post": {
+        "operationId": "TokenController_addAddress",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Token UUID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTokenAddressDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "TokenAddress added successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenAddress"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data"
+          },
+          "404": {
+            "description": "Token not found"
+          },
+          "409": {
+            "description": "Address already exists on that chain"
+          }
+        },
+        "summary": "Add a new address to a Token",
+        "tags": [
+          "tokens"
+        ]
+      }
+    },
+    "/tokens/{id}/addresses/{addressId}": {
+      "put": {
+        "operationId": "TokenController_updateAddress",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Token UUID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "addressId",
+            "required": true,
+            "in": "path",
+            "description": "TokenAddress UUID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTokenAddressDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "TokenAddress updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenAddress"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data"
+          },
+          "404": {
+            "description": "Token or TokenAddress not found"
+          },
+          "409": {
+            "description": "Address/chain combination already exists"
+          }
+        },
+        "summary": "Update a TokenAddress",
+        "tags": [
+          "tokens"
+        ]
+      },
+      "delete": {
+        "operationId": "TokenController_removeAddress",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Token UUID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "addressId",
+            "required": true,
+            "in": "path",
+            "description": "TokenAddress UUID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "TokenAddress deleted successfully"
+          },
+          "404": {
+            "description": "Token or TokenAddress not found"
+          }
+        },
+        "summary": "Delete a TokenAddress from a Token",
+        "tags": [
+          "tokens"
         ]
       }
     }
@@ -438,331 +1082,248 @@
           "chains"
         ]
       },
-      "AmountIn": {
+      "CreatePoolDto": {
         "type": "object",
         "properties": {
-          "amount": {
+          "poolAddress": {
+            "type": "string",
+            "description": "Pool contract address"
+          },
+          "chainId": {
             "type": "number",
-            "description": "Amount to be traded"
+            "description": "Blockchain chain ID"
           },
-          "AlertLevelUSD": {
+          "token0Id": {
+            "type": "string",
+            "description": "Token 0 canonical ID (UUID)"
+          },
+          "token0Address": {
+            "type": "string",
+            "description": "Token 0 address on the chain"
+          },
+          "token1Id": {
+            "type": "string",
+            "description": "Token 1 canonical ID (UUID)"
+          },
+          "token1Address": {
+            "type": "string",
+            "description": "Token 1 address on the chain"
+          },
+          "dexId": {
+            "type": "string",
+            "description": "DEX ID (UUID)"
+          },
+          "fee": {
             "type": "number",
-            "description": "Alert level in USD"
-          }
-        },
-        "required": [
-          "amount"
-        ]
-      },
-      "NetworkConfig": {
-        "type": "object",
-        "properties": {
-          "NetworkName": {
-            "type": "string",
-            "description": "Name of the network (e.g., \"solana\", \"ethereum\")"
+            "description": "Pool fee in basis points"
           },
-          "StartTokenAddress": {
-            "type": "string",
-            "description": "Address of the starting token"
-          },
-          "StartTokenTiker": {
-            "type": "string",
-            "description": "Ticker of the starting token"
-          },
-          "StartTokenDecimals": {
-            "type": "string",
-            "description": "Decimals for the starting token"
-          },
-          "FinishTokenAddress": {
-            "type": "string",
-            "description": "Address of the finishing token"
-          },
-          "FinishTokenDecimals": {
-            "type": "string",
-            "description": "Decimals for the finishing token"
-          },
-          "TokenPoolsAddresses": {
-            "description": "List of token pool addresses",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "NetworkMethod": {
-            "type": "string",
-            "description": "Network method"
-          },
-          "DexesList": {
-            "description": "List of dexes",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "SlippagePercent": {
-            "type": "string",
-            "description": "Slippage percent"
-          },
-          "native_token_ticker": {
-            "type": "string",
-            "description": "Native token ticker"
-          },
-          "native_token_decimals": {
-            "type": "number",
-            "description": "Native token decimals"
-          },
-          "swapParams": {
+          "metadata": {
             "type": "object",
-            "description": "Swap parameters for the network"
+            "description": "Additional metadata as JSON object"
           }
         },
         "required": [
-          "NetworkName",
-          "StartTokenAddress",
-          "FinishTokenAddress",
-          "SlippagePercent",
-          "swapParams"
+          "poolAddress",
+          "chainId",
+          "token0Id",
+          "token0Address",
+          "token1Id",
+          "token1Address",
+          "dexId"
         ]
       },
-      "Config": {
-        "type": "object",
-        "properties": {
-          "Enabled": {
-            "type": "string",
-            "description": "Enabled flag"
-          },
-          "Ticker": {
-            "type": "string",
-            "description": "Ticker symbol"
-          },
-          "Amounts_In": {
-            "description": "Input amounts array",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AmountIn"
-            }
-          },
-          "Directions": {
-            "type": "string",
-            "description": "Trading directions"
-          },
-          "CustomNotificationHTML": {
-            "type": "string",
-            "description": "Custom notification HTML"
-          },
-          "Network0": {
-            "description": "Configuration for Network0",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/NetworkConfig"
-              }
-            ]
-          },
-          "Network1": {
-            "description": "Configuration for Network1",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/NetworkConfig"
-              }
-            ]
-          },
-          "ws_updates": {
-            "type": "number",
-            "description": "Websocket update interval in seconds"
-          },
-          "spread_active": {
-            "type": "boolean",
-            "description": "Spread active flag"
-          },
-          "TGChannel": {
-            "type": "string",
-            "description": "Telegram channel"
-          },
-          "TGTopic": {
-            "type": "string",
-            "description": "Telegram topic"
-          },
-          "DexesList0": {
-            "description": "Dexes list for Network0",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "DexesList1": {
-            "description": "Dexes list for Network1",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "SlippagePercent0": {
-            "type": "string",
-            "description": "Slippage percent for Network0"
-          },
-          "SlippagePercent1": {
-            "type": "string",
-            "description": "Slippage percent for Network1"
-          },
-          "SpreadLifeTime": {
-            "type": "string",
-            "description": "Spread lifetime"
-          }
-        },
-        "required": [
-          "Enabled",
-          "Amounts_In",
-          "Directions",
-          "Network0",
-          "Network1"
-        ]
-      },
-      "SpreadEntry": {
-        "type": "object",
-        "properties": {
-          "Ticker": {
-            "type": "string",
-            "description": "Ticker symbol for the spread, if any"
-          },
-          "amount": {
-            "type": "number",
-            "description": "Amount used in the spread"
-          },
-          "AlertLevelUSD": {
-            "type": "number",
-            "description": "Alert level in USD for the spread"
-          },
-          "from_network": {
-            "type": "string",
-            "description": "Source network identifier"
-          },
-          "to_network": {
-            "type": "string",
-            "description": "Destination network identifier"
-          },
-          "from_network_name": {
-            "type": "string",
-            "description": "Source network name"
-          },
-          "to_network_name": {
-            "type": "string",
-            "description": "Destination network name"
-          },
-          "spread_active": {
-            "type": "boolean",
-            "description": "Flag indicating if spread is active"
-          },
-          "SpreadLifeTime": {
-            "type": "string",
-            "description": "Lifetime of the spread in string format"
-          },
-          "swap_fee_buy": {
-            "type": "number",
-            "description": "Swap fee when buying"
-          },
-          "swap_fee_sell": {
-            "type": "number",
-            "description": "Swap fee when selling"
-          },
-          "last_alert_ts": {
-            "type": "number",
-            "description": "Timestamp of the last alert"
-          },
-          "appear_spread_timestamp": {
-            "type": "number",
-            "description": "Timestamp when spread appeared"
-          },
-          "last_check_spread_timestamp": {
-            "type": "number",
-            "description": "Timestamp when spread was last checked"
-          },
-          "bye_price_changed_percentage": {
-            "type": "number",
-            "description": "Percentage change in buy price"
-          },
-          "sell_price_changed_percentage": {
-            "type": "number",
-            "description": "Percentage change in sell price"
-          },
-          "CustomNotificationHTML": {
-            "type": "string",
-            "description": "Custom HTML for notifications"
-          },
-          "from_network_amount_in_tokens": {
-            "type": "string",
-            "description": "Input token amount on the source network"
-          },
-          "to_network_amount_in_tokens": {
-            "type": "string",
-            "description": "Input token amount on the destination network"
-          },
-          "last_spread_in_usd": {
-            "type": "number",
-            "description": "Last spread value in USD"
-          },
-          "old_buy_price": {
-            "type": "number",
-            "description": "Old buy price"
-          },
-          "new_buy_price": {
-            "type": "number",
-            "description": "New buy price"
-          },
-          "old_sell_price": {
-            "type": "number",
-            "description": "Old sell price"
-          },
-          "new_sell_price": {
-            "type": "number",
-            "description": "New sell price"
-          }
-        },
-        "required": [
-          "amount",
-          "from_network",
-          "to_network",
-          "from_network_name",
-          "to_network_name",
-          "from_network_amount_in_tokens",
-          "to_network_amount_in_tokens",
-          "old_buy_price",
-          "new_buy_price",
-          "old_sell_price",
-          "new_sell_price"
-        ]
-      },
-      "CreateOrderDto": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string",
-            "description": "Order type"
-          },
-          "config": {
-            "description": "Order configuration",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Config"
-              }
-            ]
-          },
-          "spread_entry": {
-            "description": "Spread entry details",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/SpreadEntry"
-              }
-            ]
-          }
-        },
-        "required": [
-          "config",
-          "spread_entry"
-        ]
-      },
-      "InitializeDto": {
+      "Pool": {
         "type": "object",
         "properties": {}
+      },
+      "UpdatePoolDto": {
+        "type": "object",
+        "properties": {
+          "poolAddress": {
+            "type": "string",
+            "description": "Pool contract address"
+          },
+          "chainId": {
+            "type": "number",
+            "description": "Blockchain chain ID"
+          },
+          "token0Id": {
+            "type": "string",
+            "description": "Token 0 canonical ID (UUID)"
+          },
+          "token0Address": {
+            "type": "string",
+            "description": "Token 0 address on the chain"
+          },
+          "token1Id": {
+            "type": "string",
+            "description": "Token 1 canonical ID (UUID)"
+          },
+          "token1Address": {
+            "type": "string",
+            "description": "Token 1 address on the chain"
+          },
+          "dexId": {
+            "type": "string",
+            "description": "DEX ID (UUID)"
+          },
+          "fee": {
+            "type": "number",
+            "description": "Pool fee in basis points"
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Additional metadata as JSON object"
+          }
+        }
+      },
+      "CreateDexDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Unique name of the DEX"
+          },
+          "swapTopic": {
+            "type": "string",
+            "description": "Event topic hash for swap events"
+          },
+          "addLiquidityTopic": {
+            "type": "string",
+            "description": "Event topic hash for add liquidity events"
+          },
+          "removeLiquidityTopic": {
+            "type": "string",
+            "description": "Event topic hash for remove liquidity events"
+          }
+        },
+        "required": [
+          "name",
+          "swapTopic"
+        ]
+      },
+      "Dex": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateDexDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Unique name of the DEX"
+          },
+          "swapTopic": {
+            "type": "string",
+            "description": "Event topic hash for swap events"
+          },
+          "addLiquidityTopic": {
+            "type": "string",
+            "description": "Event topic hash for add liquidity events"
+          },
+          "removeLiquidityTopic": {
+            "type": "string",
+            "description": "Event topic hash for remove liquidity events"
+          }
+        }
+      },
+      "CreateTokenAddressDto": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "description": "Contract address on the blockchain"
+          },
+          "chainId": {
+            "type": "number",
+            "description": "Blockchain chain ID"
+          },
+          "decimals": {
+            "type": "number",
+            "description": "Number of decimals for the token"
+          }
+        },
+        "required": [
+          "address",
+          "chainId"
+        ]
+      },
+      "CreateTokenDto": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "description": "Token symbol (e.g., USDC, WETH)"
+          },
+          "name": {
+            "type": "string",
+            "description": "Full token name"
+          },
+          "description": {
+            "type": "string",
+            "description": "Token description"
+          },
+          "addresses": {
+            "description": "Array of token addresses across different chains",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateTokenAddressDto"
+            }
+          }
+        },
+        "required": [
+          "symbol",
+          "name"
+        ]
+      },
+      "Token": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateTokenDto": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "description": "Token symbol (e.g., USDC, WETH)"
+          },
+          "name": {
+            "type": "string",
+            "description": "Full token name"
+          },
+          "description": {
+            "type": "string",
+            "description": "Token description"
+          },
+          "addresses": {
+            "description": "Array of token addresses across different chains",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateTokenAddressDto"
+            }
+          }
+        }
+      },
+      "TokenAddress": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateTokenAddressDto": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "description": "Contract address on the blockchain"
+          },
+          "chainId": {
+            "type": "number",
+            "description": "Blockchain chain ID"
+          },
+          "decimals": {
+            "type": "number",
+            "description": "Number of decimals for the token"
+          }
+        }
       }
     }
   }
