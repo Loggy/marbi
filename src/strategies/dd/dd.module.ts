@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
+import { BullModule } from "@nestjs/bull";
 import { DDController } from "./dd.controller";
 import { DDService } from "./dd.service";
 import { Order } from "../../entities/order.entity";
@@ -11,16 +12,21 @@ import { LoggerModule } from "../../logger/logger.module";
 import { SettingsModule } from "../../settings/settings.module";
 import { Initialize } from "src/entities/initialize.entity";
 import { SharedModule } from '../../shared/shared.module';
+import { StrategyModule } from "../../strategy/strategy.module";
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Order, TokenBalance, Initialize]),
+    BullModule.registerQueue({
+      name: "strategy-dex-to-dex",
+    }),
     EVMModule,
     SolanaModule,
     DexRouterModule,
     LoggerModule,
     SettingsModule,
     SharedModule,
+    StrategyModule,
   ],
   controllers: [DDController],
   providers: [DDService],

@@ -1,6 +1,8 @@
 import { Injectable, OnModuleInit, BadRequestException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
+import { Processor, Process } from "@nestjs/bull";
+import { Job } from "bull";
 import { Order } from "../../entities/order.entity";
 import { EVMService, EVMSwapResult } from "../../blockchain/evm/evm.service";
 import {
@@ -17,6 +19,8 @@ import { EVMSwapParams } from "src/blockchain/evm/providers/okx";
 import { TokenBalance } from "src/entities/token-balance.entity";
 import { AppStateService } from "../../settings/app-state.service";
 import { BybitPriceService } from '../../shared/services/bybit-price.service';
+import { StrategyService } from "../../strategy/strategy.service";
+import { getSwapData } from "../../blockchain/evm/providers/okx";
 
 const NETWORK_TO_EXPLORER = {
   solana: "https://solscan.io/tx/",
@@ -45,6 +49,7 @@ const NETWORK_TO_NATIVE_TOKEN = {
 } as const;
 
 @Injectable()
+@Processor("strategy-dex-to-dex")
 export class DDService implements OnModuleInit {
   private readonly MAX_RETRIES = 5;
 
@@ -61,7 +66,8 @@ export class DDService implements OnModuleInit {
     private settingsService: SettingsService,
     private logger: LoggerService,
     private appStateService: AppStateService,
-    private bybitPriceService: BybitPriceService
+    private bybitPriceService: BybitPriceService,
+    private strategyService: StrategyService
   ) {}
 
   async onModuleInit() {
@@ -509,5 +515,128 @@ gasPayed: ${result.gasPayed} $${nativeToken}
 `;
 
     return message;
+  }
+
+  /**
+   * Process swap events from strategy-dex-to-dex queue
+   * Analyzes arbitrage opportunities by getting routes to all other pools in the strategy
+   */
+  @Process("swap-event")
+  async handleStrategySwapEvent(job: Job) {
+    try {
+      const swapData = job.data;
+      await this.logger.log(
+        `Processing DEX-to-DEX strategy swap event:\n` +
+        `Pool: ${swapData.pool.address}\n` +
+        `DEX: ${swapData.pool.dexName}\n` +
+        `Chain: ${swapData.chainId}\n` +
+        `Strategy: ${swapData.strategy.type}\n` +
+        `Swap Size: ${swapData.analysis?.swapSizeUsd ? '$' + swapData.analysis.swapSizeUsd.toFixed(2) : 'N/A'}`
+      );
+      const strategy = await this.strategyService.findOne(swapData.strategy.id);
+      if (!strategy || !strategy.pools || strategy.pools.length === 0) {
+        await this.logger.log(
+          `Strategy ${swapData.strategy.id} has no pools`,
+          "warn"
+        );
+        return { success: true, skipped: true, reason: "no_pools_in_strategy" };
+      }
+      const otherPools = strategy.pools.filter(pool => pool.id !== swapData.poolId);
+      if (otherPools.length === 0) {
+        await this.logger.log(
+          `No other pools in strategy ${swapData.strategy.type} to check for arbitrage`,
+          "warn"
+        );
+        return { success: true, skipped: true, reason: "no_other_pools" };
+      }
+      await this.logger.log(
+        `Found ${otherPools.length} other pools in strategy to check for arbitrage opportunities`
+      );
+      const sourceToken = swapData.analysis?.direction === "BUY"
+        ? swapData.token1
+        : swapData.token0;
+      const targetToken = swapData.analysis?.direction === "BUY"
+        ? swapData.token0
+        : swapData.token1;
+      await this.logger.log(
+        `Checking routes from ${sourceToken.symbol} to ${targetToken.symbol} ` +
+        `(amount: ${sourceToken.amountFormatted})`
+      );
+      const routePromises = otherPools.map(async (pool) => {
+        try {
+          const targetTokenInPool = pool.token0.symbol === targetToken.symbol
+            ? pool.token0Address
+            : pool.token1Address;
+          const sourceTokenInPool = pool.token0.symbol === sourceToken.symbol
+            ? pool.token0Address
+            : pool.token1Address;
+          if (!targetTokenInPool || !sourceTokenInPool) {
+            return null;
+          }
+          const swapAmount = Math.abs(parseFloat(sourceToken.amount)).toString();
+          const routeData = await getSwapData({
+            chainId: swapData.chainId.toString(),
+            fromTokenAddress: sourceTokenInPool as any,
+            toTokenAddress: targetTokenInPool as any,
+            amount: swapAmount,
+            slippage: "0.01",
+            userWalletAddress: "0x0000000000000000000000000000000000000000" as any,
+          });
+          if (routeData.code !== "0") {
+            await this.logger.log(
+              `Failed to get route for pool ${pool.poolAddress}: ${routeData.message}`,
+              "warn"
+            );
+            return null;
+          }
+          return {
+            pool,
+            routeData: routeData.data,
+            estimatedOutput: routeData.data[0]?.routerResult?.toTokenAmount || "0",
+          };
+        } catch (error) {
+          await this.logger.log(
+            `Error getting route for pool ${pool.poolAddress}: ${error.message}`,
+            "error"
+          );
+          return null;
+        }
+      });
+      const routes = (await Promise.all(routePromises)).filter(r => r !== null);
+      if (routes.length > 0) {
+        await this.logger.log(
+          `Found ${routes.length} potential arbitrage routes:`
+        );
+        for (const route of routes) {
+          const outputAmount = parseFloat(route.estimatedOutput) / (10 ** targetToken.decimals);
+          const inputAmount = parseFloat(sourceToken.amountFormatted);
+          const profitPercent = ((outputAmount - inputAmount) / inputAmount) * 100;
+          await this.logger.log(
+            `Pool: ${route.pool.poolAddress} (${route.pool.dex.name})\n` +
+            `Input: ${inputAmount.toFixed(6)} ${sourceToken.symbol}\n` +
+            `Output: ${outputAmount.toFixed(6)} ${targetToken.symbol}\n` +
+            `Profit: ${profitPercent.toFixed(2)}%`
+          );
+          if (profitPercent > 0.5) {
+            await this.logger.log(
+              `🚨 ARBITRAGE OPPORTUNITY DETECTED 🚨\n` +
+              `Profit: ${profitPercent.toFixed(2)}%\n` +
+              `Route: ${swapData.pool.dexName} -> ${route.pool.dex.name}\n` +
+              `Chain: ${swapData.chainId}`,
+              "warn"
+            );
+          }
+        }
+      } else {
+        await this.logger.log("No valid routes found for arbitrage");
+      }
+      return { success: true, routesChecked: routes.length };
+    } catch (error) {
+      await this.logger.log(
+        `Failed to process strategy swap event: ${error.message}`,
+        "error"
+      );
+      throw error;
+    }
   }
 }

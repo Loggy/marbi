@@ -1027,6 +1027,295 @@
           "tokens"
         ]
       }
+    },
+    "/strategies": {
+      "post": {
+        "operationId": "StrategyController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateStrategyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Strategy created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Strategy"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data"
+          }
+        },
+        "summary": "Create a new Strategy",
+        "tags": [
+          "strategies"
+        ]
+      },
+      "get": {
+        "operationId": "StrategyController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "List of all Strategies",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Strategy"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get all Strategies with their pools",
+        "tags": [
+          "strategies"
+        ]
+      }
+    },
+    "/strategies/by-type": {
+      "get": {
+        "operationId": "StrategyController_findByType",
+        "parameters": [
+          {
+            "name": "type",
+            "required": true,
+            "in": "query",
+            "description": "Strategy type",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of strategies matching the type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Strategy"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Find strategies by type",
+        "tags": [
+          "strategies"
+        ]
+      }
+    },
+    "/strategies/{id}": {
+      "get": {
+        "operationId": "StrategyController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Strategy UUID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Strategy found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Strategy"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Strategy not found"
+          }
+        },
+        "summary": "Get a Strategy by ID with its pools",
+        "tags": [
+          "strategies"
+        ]
+      },
+      "put": {
+        "operationId": "StrategyController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Strategy UUID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateStrategyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Strategy updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Strategy"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data"
+          },
+          "404": {
+            "description": "Strategy not found"
+          }
+        },
+        "summary": "Update a Strategy",
+        "tags": [
+          "strategies"
+        ]
+      },
+      "delete": {
+        "operationId": "StrategyController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Strategy UUID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Strategy deleted successfully"
+          },
+          "404": {
+            "description": "Strategy not found"
+          }
+        },
+        "summary": "Delete a Strategy",
+        "tags": [
+          "strategies"
+        ]
+      }
+    },
+    "/strategies/{id}/pools/{poolId}": {
+      "post": {
+        "operationId": "StrategyController_addPool",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Strategy UUID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "poolId",
+            "required": true,
+            "in": "path",
+            "description": "Pool UUID to add",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pool added to strategy successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Strategy"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Strategy or Pool not found"
+          },
+          "409": {
+            "description": "Pool is already assigned to another strategy"
+          }
+        },
+        "summary": "Add a pool to a strategy",
+        "tags": [
+          "strategies"
+        ]
+      },
+      "delete": {
+        "operationId": "StrategyController_removePool",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Strategy UUID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "poolId",
+            "required": true,
+            "in": "path",
+            "description": "Pool UUID to remove",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pool removed from strategy successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Strategy"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Strategy or Pool not found"
+          }
+        },
+        "summary": "Remove a pool from a strategy",
+        "tags": [
+          "strategies"
+        ]
+      }
     }
   },
   "info": {
@@ -1322,6 +1611,31 @@
           "decimals": {
             "type": "number",
             "description": "Number of decimals for the token"
+          }
+        }
+      },
+      "CreateStrategyDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Strategy type (e.g., 'dex-to-dex', 'cross-chain')"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "Strategy": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateStrategyDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Strategy type (e.g., 'dex-to-dex', 'cross-chain')"
           }
         }
       }

@@ -10,6 +10,7 @@ import {
 } from "typeorm";
 import { Token } from "./token.entity";
 import { Dex } from "./dex.entity";
+import { Strategy } from "./strategy.entity";
 
 /**
  * Pool entity represents a DEX liquidity pool containing a token pair.
@@ -62,6 +63,15 @@ export class Pool {
 
   @Column()
   dexId: string;
+
+  @ManyToOne(() => Strategy, (strategy) => strategy.pools, {
+    onDelete: "CASCADE",
+  })
+  @JoinColumn({ name: "strategyId" })
+  strategy: Strategy;
+
+  @Column({ nullable: true })
+  strategyId: string;
 
   @Column({ nullable: true })
   fee: number;

@@ -5,6 +5,7 @@ import { EVMListenerController } from "./evm-listener.controller";
 import { LoggerModule } from "../../../logger/logger.module";
 import { BlockEventsProcessor } from "./processors/block-events.processor";
 import { PoolModule } from "../../../pool/pool.module";
+import { SharedModule } from "../../../shared/shared.module";
 
 /**
  * EVMListenerModule - Monitors new blocks on multiple EVM chains via WebSocket
@@ -16,6 +17,7 @@ import { PoolModule } from "../../../pool/pool.module";
   imports: [
     LoggerModule,
     PoolModule,
+    SharedModule,
     BullModule.registerQueue({
       name: "block-events",
     }),

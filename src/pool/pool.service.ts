@@ -215,7 +215,7 @@ export class PoolService {
         poolAddress: poolAddress.toLowerCase(),
         chainId,
       },
-      relations: ["token0", "token0.addresses", "token1", "token1.addresses", "dex"],
+      relations: ["token0", "token0.addresses", "token1", "token1.addresses", "dex", "strategy"],
     });
   }
 

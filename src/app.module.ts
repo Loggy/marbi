@@ -5,10 +5,12 @@ import { LoggerModule } from "./logger/logger.module";
 import { PoolModule } from "./pool/pool.module";
 import { DexModule } from "./dex/dex.module";
 import { TokenModule } from "./token/token.module";
+import { StrategyModule } from "./strategy/strategy.module";
 import { Token } from "./entities/token.entity";
 import { TokenAddress } from "./entities/token-address.entity";
 import { Pool } from "./entities/pool.entity";
 import { Dex } from "./entities/dex.entity";
+import { Strategy } from "./entities/strategy.entity";
 
 import { config } from "dotenv";
 import { EVMListenerModule } from "./blockchain/evm/evm-listener/evm-listener.module";
@@ -23,7 +25,7 @@ config();
       username: process.env.DB_USERNAME,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
-      entities: [Token, TokenAddress, Pool, Dex],
+      entities: [Token, TokenAddress, Pool, Dex, Strategy],
       synchronize: true, // Set to false in production
     }),
     BullModule.forRoot({
@@ -38,6 +40,7 @@ config();
     PoolModule,
     DexModule,
     TokenModule,
+    StrategyModule,
   ],
 })
 export class AppModule {}
