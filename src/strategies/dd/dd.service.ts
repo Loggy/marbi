@@ -520,18 +520,27 @@ gasPayed: ${result.gasPayed} $${nativeToken}
   /**
    * Process swap events from strategy-dex-to-dex queue
    * Analyzes arbitrage opportunities by getting routes to all other pools in the strategy
+   * Filters out swaps below $50 USD minimum threshold
    */
   @Process("swap-event")
   async handleStrategySwapEvent(job: Job) {
     try {
       const swapData = job.data;
+      const MIN_SWAP_SIZE_USD = 50;
+      const swapSizeUsd = swapData.analysis?.swapSizeUsd;
+      if (!swapSizeUsd || swapSizeUsd < MIN_SWAP_SIZE_USD) {
+        await this.logger.log(
+          `Skipping swap: size ${swapSizeUsd ? '$' + swapSizeUsd.toFixed(2) : 'unknown'} is below minimum $${MIN_SWAP_SIZE_USD} threshold`
+        );
+        return { success: true, skipped: true, reason: "below_minimum_threshold" };
+      }
       await this.logger.log(
         `Processing DEX-to-DEX strategy swap event:\n` +
         `Pool: ${swapData.pool.address}\n` +
         `DEX: ${swapData.pool.dexName}\n` +
         `Chain: ${swapData.chainId}\n` +
         `Strategy: ${swapData.strategy.type}\n` +
-        `Swap Size: ${swapData.analysis?.swapSizeUsd ? '$' + swapData.analysis.swapSizeUsd.toFixed(2) : 'N/A'}`
+        `Swap Size: $${swapSizeUsd.toFixed(2)}`
       );
       const strategy = await this.strategyService.findOne(swapData.strategy.id);
       if (!strategy || !strategy.pools || strategy.pools.length === 0) {
