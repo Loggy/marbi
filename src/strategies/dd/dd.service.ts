@@ -20,7 +20,7 @@ import { TokenBalance } from "src/entities/token-balance.entity";
 import { AppStateService } from "../../settings/app-state.service";
 import { BybitPriceService } from '../../shared/services/bybit-price.service';
 import { StrategyService } from "../../strategy/strategy.service";
-import { getSwapData } from "../../blockchain/evm/providers/okx";
+import * as crypto from "crypto";
 
 const NETWORK_TO_EXPLORER = {
   solana: "https://solscan.io/tx/",
@@ -52,6 +52,7 @@ const NETWORK_TO_NATIVE_TOKEN = {
 @Processor("strategy-dex-to-dex")
 export class DDService implements OnModuleInit {
   private readonly MAX_RETRIES = 5;
+  private readonly SPREAD_SIZE_IN_BIPS = 20;
 
   constructor(
     @InjectRepository(Order)
@@ -518,8 +519,73 @@ gasPayed: ${result.gasPayed} $${nativeToken}
   }
 
   /**
+   * Makes OKX DEX aggregator quote request
+   */
+  private async getOkxQuote(params: {
+    chainId: string;
+    fromTokenAddress: string;
+    toTokenAddress: string;
+    amount: string;
+    slippage?: string;
+  }): Promise<any> {
+    const { chainId, fromTokenAddress, toTokenAddress, amount, slippage = "1" } = params;
+    const queryParams = [
+      `chainIndex=${chainId}`,
+      `fromTokenAddress=${fromTokenAddress}`,
+      `toTokenAddress=${toTokenAddress}`,
+      `amount=${amount}`,
+      `swapMode=exactIn`,
+      `slippage=${slippage}`
+    ].join('&');
+    const method = 'GET';
+    const requestPath = '/api/v5/dex/aggregator/quote';
+    const fullPath = `${requestPath}?${queryParams}`;
+    const url = `https://www.okx.com${fullPath}`;
+    const timestamp = new Date().toISOString();
+    const apiKey = process.env.OKX_API_KEY;
+    const secret = process.env.OKX_SECRET_KEY;
+    const passphrase = process.env.OKX_PASSPHRASE;
+    const sign = crypto
+      .createHmac('sha256', secret)
+      .update(timestamp + method + fullPath)
+      .digest('base64');
+    const headers = {
+      'OK-ACCESS-KEY': apiKey,
+      'OK-ACCESS-SIGN': sign,
+      'OK-ACCESS-TIMESTAMP': timestamp,
+      'OK-ACCESS-PASSPHRASE': passphrase,
+    };
+    const response = await fetch(url, { headers });
+    return response.json();
+  }
+
+  /**
+   * Calculates spread between two amounts
+   */
+  private calculateSpread(params: {
+    spentAmount: number;
+    receivedAmountRaw: string;
+    receivedDecimals: number;
+  }): {
+    spreadPercent: number;
+    spreadUsd: number;
+    profitable: boolean;
+  } {
+    const { spentAmount, receivedAmountRaw, receivedDecimals } = params;
+    const receivedAmount = Number(receivedAmountRaw) / 10 ** receivedDecimals;
+    const spreadPercent = ((receivedAmount / spentAmount) - 1) * 100;
+    const spreadUsd = receivedAmount - spentAmount;
+    const profitable = spreadUsd > 0;
+    return {
+      spreadPercent,
+      spreadUsd,
+      profitable
+    };
+  }
+
+  /**
    * Process swap events from strategy-dex-to-dex queue
-   * Analyzes arbitrage opportunities by getting routes to all other pools in the strategy
+   * Analyzes arbitrage opportunities by checking spreads across all pools in the strategy
    * Filters out swaps below $50 USD minimum threshold
    */
   @Process("swap-event")
@@ -540,6 +606,7 @@ gasPayed: ${result.gasPayed} $${nativeToken}
         `DEX: ${swapData.pool.dexName}\n` +
         `Chain: ${swapData.chainId}\n` +
         `Strategy: ${swapData.strategy.type}\n` +
+        `Direction: ${swapData.analysis?.direction}\n` +
         `Swap Size: $${swapSizeUsd.toFixed(2)}`
       );
       const strategy = await this.strategyService.findOne(swapData.strategy.id);
@@ -550,7 +617,16 @@ gasPayed: ${result.gasPayed} $${nativeToken}
         );
         return { success: true, skipped: true, reason: "no_pools_in_strategy" };
       }
-      const otherPools = strategy.pools.filter(pool => pool.id !== swapData.poolId);
+      const allPools = strategy.pools;
+      const eventPool = allPools.find(pool => pool.id === swapData.poolId);
+      if (!eventPool) {
+        await this.logger.log(
+          `Event pool not found in strategy pools`,
+          "warn"
+        );
+        return { success: true, skipped: true, reason: "event_pool_not_found" };
+      }
+      const otherPools = allPools.filter(pool => pool.id !== swapData.poolId);
       if (otherPools.length === 0) {
         await this.logger.log(
           `No other pools in strategy ${swapData.strategy.type} to check for arbitrage`,
@@ -559,87 +635,254 @@ gasPayed: ${result.gasPayed} $${nativeToken}
         return { success: true, skipped: true, reason: "no_other_pools" };
       }
       await this.logger.log(
-        `Found ${otherPools.length} other pools in strategy to check for arbitrage opportunities`
+        `Checking spread opportunities across ${allPools.length} pools (${otherPools.length} other pools)`
       );
-      const sourceToken = swapData.analysis?.direction === "BUY"
-        ? swapData.token1
-        : swapData.token0;
-      const targetToken = swapData.analysis?.direction === "BUY"
-        ? swapData.token0
-        : swapData.token1;
-      await this.logger.log(
-        `Checking routes from ${sourceToken.symbol} to ${targetToken.symbol} ` +
-        `(amount: ${sourceToken.amountFormatted})`
-      );
-      const routePromises = otherPools.map(async (pool) => {
+      const swapDirection = swapData.analysis?.direction;
+      const token0 = swapData.token0;
+      const token1 = swapData.token1;
+      const swapAmountUsd = swapSizeUsd;
+      const eventPoolToken0InPool = eventPool.token0.symbol === token0.symbol
+        ? eventPool.token0Address
+        : eventPool.token1Address;
+      const eventPoolToken1InPool = eventPool.token0.symbol === token1.symbol
+        ? eventPool.token0Address
+        : eventPool.token1Address;
+      if (!eventPoolToken0InPool || !eventPoolToken1InPool) {
+        await this.logger.log(
+          `Token addresses not found in event pool`,
+          "warn"
+        );
+        return { success: true, skipped: true, reason: "token_addresses_not_found" };
+      }
+      const initialQuotePromises = otherPools.map(async (pool) => {
         try {
-          const targetTokenInPool = pool.token0.symbol === targetToken.symbol
+          const poolToken0InPool = pool.token0.symbol === token0.symbol
             ? pool.token0Address
             : pool.token1Address;
-          const sourceTokenInPool = pool.token0.symbol === sourceToken.symbol
+          const poolToken1InPool = pool.token0.symbol === token1.symbol
             ? pool.token0Address
             : pool.token1Address;
-          if (!targetTokenInPool || !sourceTokenInPool) {
+          if (!poolToken0InPool || !poolToken1InPool) {
             return null;
           }
-          const swapAmount = Math.abs(parseFloat(sourceToken.amount)).toString();
-          const routeData = await getSwapData({
-            chainId: swapData.chainId.toString(),
-            fromTokenAddress: sourceTokenInPool as any,
-            toTokenAddress: targetTokenInPool as any,
-            amount: swapAmount,
-            slippage: "0.01",
-            userWalletAddress: "0x0000000000000000000000000000000000000000" as any,
+          let fromToken: string;
+          let toToken: string;
+          let fromDecimals: number;
+          let toDecimals: number;
+          let amount: string;
+          if (swapDirection === "BUY") {
+            fromToken = poolToken0InPool;
+            toToken = poolToken1InPool;
+            fromDecimals = token0.decimals;
+            toDecimals = token1.decimals;
+            amount = (swapAmountUsd * 10 ** fromDecimals).toString();
+          } else {
+            fromToken = poolToken1InPool;
+            toToken = poolToken0InPool;
+            fromDecimals = token1.decimals;
+            toDecimals = token0.decimals;
+            amount = (swapAmountUsd * 10 ** fromDecimals).toString();
+          }
+          const quoteData = await this.getOkxQuote({
+            chainId: pool.chainId.toString(),
+            fromTokenAddress: fromToken,
+            toTokenAddress: toToken,
+            amount: amount,
+            slippage: "1",
           });
-          if (routeData.code !== "0") {
+          if (quoteData.code !== "0") {
             await this.logger.log(
-              `Failed to get route for pool ${pool.poolAddress}: ${routeData.message}`,
+              `Failed to get quote for pool ${pool.poolAddress}: ${quoteData.msg}`,
               "warn"
             );
             return null;
           }
+          const receivedAmountRaw = quoteData.data?.[0]?.toTokenAmount;
+          if (!receivedAmountRaw) {
+            return null;
+          }
+          const spread = this.calculateSpread({
+            spentAmount: swapAmountUsd,
+            receivedAmountRaw: receivedAmountRaw,
+            receivedDecimals: toDecimals,
+          });
           return {
             pool,
-            routeData: routeData.data,
-            estimatedOutput: routeData.data[0]?.routerResult?.toTokenAmount || "0",
+            chainId: pool.chainId,
+            fromToken,
+            toToken,
+            amount,
+            receivedAmountRaw,
+            fromDecimals,
+            toDecimals,
+            spread,
           };
         } catch (error) {
           await this.logger.log(
-            `Error getting route for pool ${pool.poolAddress}: ${error.message}`,
+            `Error getting quote for pool ${pool.poolAddress}: ${error.message}`,
             "error"
           );
           return null;
         }
       });
-      const routes = (await Promise.all(routePromises)).filter(r => r !== null);
-      if (routes.length > 0) {
-        await this.logger.log(
-          `Found ${routes.length} potential arbitrage routes:`
-        );
-        for (const route of routes) {
-          const outputAmount = parseFloat(route.estimatedOutput) / (10 ** targetToken.decimals);
-          const inputAmount = parseFloat(sourceToken.amountFormatted);
-          const profitPercent = ((outputAmount - inputAmount) / inputAmount) * 100;
-          await this.logger.log(
-            `Pool: ${route.pool.poolAddress} (${route.pool.dex.name})\n` +
-            `Input: ${inputAmount.toFixed(6)} ${sourceToken.symbol}\n` +
-            `Output: ${outputAmount.toFixed(6)} ${targetToken.symbol}\n` +
-            `Profit: ${profitPercent.toFixed(2)}%`
-          );
-          if (profitPercent > 0.5) {
+      const eventPoolQuotePromise = (async () => {
+        try {
+          let fromToken: string;
+          let toToken: string;
+          let fromDecimals: number;
+          let toDecimals: number;
+          let amount: string;
+          if (swapDirection === "BUY") {
+            fromToken = eventPoolToken1InPool;
+            toToken = eventPoolToken0InPool;
+            fromDecimals = token1.decimals;
+            toDecimals = token0.decimals;
+            amount = (swapAmountUsd * 10 ** fromDecimals).toString();
+          } else {
+            fromToken = eventPoolToken0InPool;
+            toToken = eventPoolToken1InPool;
+            fromDecimals = token0.decimals;
+            toDecimals = token1.decimals;
+            amount = (swapAmountUsd * 10 ** fromDecimals).toString();
+          }
+          const quoteData = await this.getOkxQuote({
+            chainId: eventPool.chainId.toString(),
+            fromTokenAddress: fromToken,
+            toTokenAddress: toToken,
+            amount: amount,
+            slippage: "1",
+          });
+          if (quoteData.code !== "0") {
             await this.logger.log(
-              `🚨 ARBITRAGE OPPORTUNITY DETECTED 🚨\n` +
-              `Profit: ${profitPercent.toFixed(2)}%\n` +
-              `Route: ${swapData.pool.dexName} -> ${route.pool.dex.name}\n` +
-              `Chain: ${swapData.chainId}`,
+              `Failed to get quote for event pool: ${quoteData.msg}`,
               "warn"
             );
+            return null;
           }
+          const receivedAmountRaw = quoteData.data?.[0]?.toTokenAmount;
+          if (!receivedAmountRaw) {
+            return null;
+          }
+          const spread = this.calculateSpread({
+            spentAmount: swapAmountUsd,
+            receivedAmountRaw: receivedAmountRaw,
+            receivedDecimals: toDecimals,
+          });
+          return {
+            pool: eventPool,
+            chainId: eventPool.chainId,
+            fromToken,
+            toToken,
+            amount,
+            receivedAmountRaw,
+            fromDecimals,
+            toDecimals,
+            spread,
+          };
+        } catch (error) {
+          await this.logger.log(
+            `Error getting quote for event pool: ${error.message}`,
+            "error"
+          );
+          return null;
         }
-      } else {
-        await this.logger.log("No valid routes found for arbitrage");
+      })();
+      const [eventPoolQuote, ...otherPoolsQuotes] = await Promise.all([
+        eventPoolQuotePromise,
+        ...initialQuotePromises,
+      ]);
+      const allQuotes = [eventPoolQuote, ...otherPoolsQuotes].filter(q => q !== null);
+      if (allQuotes.length === 0) {
+        await this.logger.log("No valid quotes received");
+        return { success: true, skipped: true, reason: "no_valid_quotes" };
       }
-      return { success: true, routesChecked: routes.length };
+      allQuotes.sort((a, b) => b.spread.spreadPercent - a.spread.spreadPercent);
+      const bestSpread = allQuotes[0];
+      await this.logger.log(
+        `Best initial spread found:\n` +
+        `Pool: ${bestSpread.pool.poolAddress} (${bestSpread.pool.dex.name})\n` +
+        `Chain: ${bestSpread.chainId}\n` +
+        `Spread: ${bestSpread.spread.spreadPercent.toFixed(2)}% (${bestSpread.spread.spreadUsd.toFixed(2)} USD)\n` +
+        `Profitable: ${bestSpread.spread.profitable}`
+      );
+      const spreadInBips = bestSpread.spread.spreadPercent * 100;
+      if (spreadInBips <= this.SPREAD_SIZE_IN_BIPS) {
+        await this.logger.log(
+          `Spread ${spreadInBips.toFixed(0)} bips is below threshold ${this.SPREAD_SIZE_IN_BIPS} bips`
+        );
+        return { success: true, skipped: true, reason: "spread_below_threshold" };
+      }
+      await this.logger.log(
+        `Confirming best spread with second request...`
+      );
+      const confirmQuoteData = await this.getOkxQuote({
+        chainId: bestSpread.chainId.toString(),
+        fromTokenAddress: bestSpread.fromToken,
+        toTokenAddress: bestSpread.toToken,
+        amount: bestSpread.amount,
+        slippage: "1",
+      });
+      if (confirmQuoteData.code !== "0") {
+        await this.logger.log(
+          `Failed to confirm quote: ${confirmQuoteData.msg}`,
+          "warn"
+        );
+        return { success: true, skipped: true, reason: "confirmation_failed" };
+      }
+      const confirmedReceivedAmountRaw = confirmQuoteData.data?.[0]?.toTokenAmount;
+      if (!confirmedReceivedAmountRaw) {
+        await this.logger.log(
+          `No toTokenAmount in confirmation response`,
+          "warn"
+        );
+        return { success: true, skipped: true, reason: "no_confirmed_amount" };
+      }
+      const confirmedSpread = this.calculateSpread({
+        spentAmount: swapAmountUsd,
+        receivedAmountRaw: confirmedReceivedAmountRaw,
+        receivedDecimals: bestSpread.toDecimals,
+      });
+      const confirmedSpreadInBips = confirmedSpread.spreadPercent * 100;
+      await this.logger.log(
+        `Confirmed spread: ${confirmedSpread.spreadPercent.toFixed(2)}% (${confirmedSpreadInBips.toFixed(0)} bips)`
+      );
+      if (confirmedSpreadInBips > this.SPREAD_SIZE_IN_BIPS) {
+        console.log(
+          `\n🚨 PROFITABLE SPREAD DETECTED 🚨\n` +
+          `Strategy: ${swapData.strategy.type}\n` +
+          `Direction: ${swapDirection}\n` +
+          `Pool: ${bestSpread.pool.poolAddress}\n` +
+          `DEX: ${bestSpread.pool.dex.name}\n` +
+          `Chain: ${bestSpread.chainId}\n` +
+          `Swap Size: $${swapAmountUsd.toFixed(2)}\n` +
+          `Spread: ${confirmedSpread.spreadPercent.toFixed(2)}% (${confirmedSpreadInBips.toFixed(0)} bips)\n` +
+          `Spread USD: $${confirmedSpread.spreadUsd.toFixed(2)}\n` +
+          `Profitable: ${confirmedSpread.profitable}\n`
+        );
+        await this.logger.log(
+          `🚨 PROFITABLE SPREAD DETECTED 🚨\n` +
+          `Strategy: ${swapData.strategy.type}\n` +
+          `Direction: ${swapDirection}\n` +
+          `Pool: ${bestSpread.pool.poolAddress}\n` +
+          `DEX: ${bestSpread.pool.dex.name}\n` +
+          `Chain: ${bestSpread.chainId}\n` +
+          `Swap Size: $${swapAmountUsd.toFixed(2)}\n` +
+          `Spread: ${confirmedSpread.spreadPercent.toFixed(2)}% (${confirmedSpreadInBips.toFixed(0)} bips)\n` +
+          `Spread USD: $${confirmedSpread.spreadUsd.toFixed(2)}\n` +
+          `Profitable: ${confirmedSpread.profitable}`,
+          "warn"
+        );
+      } else {
+        await this.logger.log(
+          `Confirmed spread ${confirmedSpreadInBips.toFixed(0)} bips is below threshold ${this.SPREAD_SIZE_IN_BIPS} bips`
+        );
+      }
+      return {
+        success: true,
+        quotesChecked: allQuotes.length,
+        bestSpreadBips: confirmedSpreadInBips,
+        profitable: confirmedSpreadInBips > this.SPREAD_SIZE_IN_BIPS
+      };
     } catch (error) {
       await this.logger.log(
         `Failed to process strategy swap event: ${error.message}`,
